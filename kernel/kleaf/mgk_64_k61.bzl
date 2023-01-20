@@ -375,8 +375,6 @@ mgk_64_k61_device_modules = [
     "drivers/misc/mediatek/pbm/mtk_peak_power_budget.ko",
     "drivers/misc/mediatek/cg_ppt/mtk_cg_peak_power_throttling.ko",
     "drivers/misc/mediatek/perf_common/mtk_perf_common.ko",
-    "drivers/misc/mediatek/performance/fpsgo_v3/mtk_fpsgo.ko",
-    "drivers/misc/mediatek/performance/frs/frs.ko",
     "drivers/misc/mediatek/performance/load_track/load_track.ko",
     "drivers/misc/mediatek/performance/mtk_ioctl_touch_boost.ko",
     "drivers/misc/mediatek/performance/mtk_ioctl_powerhal.ko",
