@@ -548,9 +548,11 @@ static struct LCM_setting_table gray_3d_lut[] = {
 	{0x57, 01, {0x00}},
 };
 
+#ifdef ENABLE_30HZ
 static struct LCM_setting_table exit_aod[] = {
 	{0x38, 01, {0x00}},
 };
+#endif
 
 static struct LCM_setting_table lcm_aod_high_mode_with_lhbm_alpha[] = {
 	{0x5F, 02, {0x00,0x40} },
@@ -690,7 +692,11 @@ static void lcm_panel_init(struct lcm *ctx)
 	usleep_range(10 * 1000, 11 * 1000);
 	devm_gpiod_put(ctx->dev, ctx->reset_gpio);
 
+#ifdef ENABLE_30HZ
 	if (ctx->dynamic_fps == 120  || ctx->dynamic_fps == 30) {
+#else
+	if (ctx->dynamic_fps == 120) {
+#endif
 		if (init_setting_vdo[FPS_INIT_INDEX].cmd == 0x2F)
 			init_setting_vdo[FPS_INIT_INDEX].para_list[0] = 0x00;
 		else
@@ -932,7 +938,9 @@ static int lcm_enable(struct drm_panel *panel)
 #define HFP                (12)
 #define HSA                (4)
 #define HBP                (16)
+#ifdef ENABLE_30HZ
 #define HFP_30HZ           (1600)
+#endif
 
 #define VFP_120HZ          (68)
 #define VFP_90HZ           (1012)
@@ -940,11 +948,14 @@ static int lcm_enable(struct drm_panel *panel)
 #define VSA                (10)
 #define VBP                (10)
 
+#ifdef ENABLE_30HZ
 #define  MODE_0_FPS (30)
+#endif
 #define  MODE_1_FPS (60)
 #define  MODE_2_FPS (90)
 #define  MODE_3_FPS (120)
 
+#ifdef ENABLE_30HZ
 static const struct drm_display_mode mode_30hz = {
 	.clock = (FRAME_WIDTH + HFP_30HZ + HSA + HBP) *
 		(FRAME_HEIGHT + VFP_120HZ + VSA + VBP) * MODE_0_FPS / 1000,    //h_total * v_total * fps / 1000,
@@ -957,6 +968,7 @@ static const struct drm_display_mode mode_30hz = {
 	.vsync_end = FRAME_HEIGHT + VFP_120HZ + VSA,		//VSA
 	.vtotal = FRAME_HEIGHT + VFP_120HZ + VSA + VBP,		//VBP
 };
+#endif
 
 static const struct drm_display_mode mode_60hz = {
 	.clock = (FRAME_WIDTH + HFP + HSA + HBP) *
@@ -998,7 +1010,7 @@ static const struct drm_display_mode mode_120hz = {
 };
 
 #if defined(CONFIG_MTK_PANEL_EXT)
-
+#ifdef ENABLE_30HZ
 static struct mtk_panel_params ext_params_30hz = {
 	.lcm_index = 0,
 	.pll_clk = DATA_RATE / 2,
@@ -1068,6 +1080,7 @@ static struct mtk_panel_params ext_params_30hz = {
 	.physical_width_um = PHYSICAL_WIDTH,
 	.physical_height_um = PHYSICAL_HEIGHT,
 };
+#endif
 
 static struct mtk_panel_params ext_params_60hz = {
 	.lcm_index = 0,
@@ -1373,9 +1386,13 @@ static int mtk_panel_ext_param_get(struct drm_panel *panel,
 
 	dst_fps = m_dst ? drm_mode_vrefresh(m_dst) : -EINVAL;
 
+#ifdef ENABLE_30HZ
 	if (dst_fps == 30) {
 		*ext_param = &ext_params_30hz;
 	} else if (dst_fps == 60) {
+#else
+	if (dst_fps == 60) {
+#endif
 		*ext_param = &ext_params_60hz;
 	} else if (dst_fps == 90)
 		*ext_param = &ext_params_90hz;
@@ -1405,6 +1422,7 @@ static int mtk_panel_ext_param_set(struct drm_panel *panel,
 
 	globle_mtk_dsi->mi_cfg.dynamic_fps = dst_fps;
 
+#ifdef ENABLE_30HZ
 	if (dst_fps == 30) {
 		if (panel_ctx->doze_brightness_state == DOZE_BRIGHTNESS_HBM) {
 			ext_params_30hz.dyn_fps.dfps_cmd_table[1].para_list[1] = (doze_hbm_dbv_level >>8) & 0xFF;
@@ -1418,6 +1436,9 @@ static int mtk_panel_ext_param_set(struct drm_panel *panel,
 			ext_params_30hz.dyn_fps.dfps_cmd_table[1].para_list[6] = 0x55;
 		}
 		ext->params = &ext_params_30hz;
+#else
+	if (dst_fps == 60) {
+#endif
 	} else if (dst_fps == 60) {
 		if (globle_mtk_dsi->mi_cfg.count_info_val[DISP_COUNT_INFO_POWERSTATUS] == 1 ||
 				globle_mtk_dsi->mi_cfg.brightness_clone) {
@@ -1514,7 +1535,12 @@ static int mode_switch(struct drm_panel *panel,
 			mode_switch_to_60(panel);
 		} else if (drm_mode_vrefresh(m_dst) == 90) { /* 1200 switch to 60 */
 			mode_switch_to_90(panel);
-		} else if (drm_mode_vrefresh(m_dst) == 120 || drm_mode_vrefresh(m_dst) == 30) { /* 1200 switch to 60 */
+		}
+#ifdef ENABLE_30HZ
+		else if (drm_mode_vrefresh(m_dst) == 120 || drm_mode_vrefresh(m_dst) == 30) { /* 1200 switch to 60 */
+#else
+		else if (drm_mode_vrefresh(m_dst) == 120) { /* 1200 switch to 60 */
+#endif
 			mode_switch_to_120(panel);
 		} else {
 			pr_info("%s, dst_fps %d\n", __func__, drm_mode_vrefresh(m_dst));
@@ -1585,17 +1611,23 @@ static int panel_set_doze_brightness(struct drm_panel *panel, int doze_brightnes
 			ret = mi_disp_panel_ddic_send_cmd(lcm_aod_low_mode, ARRAY_SIZE(lcm_aod_low_mode), false);
 		else if (DOZE_BRIGHTNESS_HBM == doze_brightness)
 			ret = mi_disp_panel_ddic_send_cmd(lcm_aod_high_mode, ARRAY_SIZE(lcm_aod_high_mode), false);
+#ifdef ENABLE_30HZ
 		if (ctx->dynamic_fps != 30)
 			dynamic_change_fps_going = true;
 		else
 			dynamic_change_fps_going = false;
+#else
+		dynamic_change_fps_going = true;
+#endif
 		atomic_set(&doze_enable, 1);
 	}
 
 	if (DOZE_TO_NORMAL == doze_brightness) {
+#ifdef ENABLE_30HZ
 		if (ctx->dynamic_fps == 30)
 			dynamic_change_fps_going = true;
 		else
+#endif
 			dynamic_change_fps_going = false;
 	}
 
@@ -2199,17 +2231,23 @@ static int panel_set_lhbm_fod(struct mtk_dsi *dsi, enum local_hbm_state lhbm_sta
 			mi_dsi_panel_set_doze_brightness(dsi, DOZE_TO_NORMAL);
 			mutex_lock(&dsi->dsi_lock);
 			for (i = 0; i < 12; i ++) {
+#ifdef ENABLE_30HZ
 				if (ctx->dynamic_fps != 30 && dynamic_change_fps_going == false)
+#else
+				if (dynamic_change_fps_going == false)
+#endif
 					break;
 				else
 					msleep(5);
 			}
 			pr_info("LOCAL_HBM_NORMAL_WHITE_250NIT, wait  %dms, ctx->dynamic_fps = %d\n", i*5, ctx->dynamic_fps);
 		}
+#ifdef ENABLE_30HZ
 		if (ctx->dynamic_fps == 30) {
 			pr_info("fps may incorrect, exit 30hz aod first\n");
 			mi_disp_panel_ddic_send_cmd(exit_aod,ARRAY_SIZE(exit_aod), false);
 		}
+#endif
 
 		mi_disp_panel_update_lhbm_A9reg(dsi, TYPE_WHITE_250, flat_mode, bl_level);
 		mi_disp_panel_ddic_send_cmd(lhbm_normal_white_250nit, ARRAY_SIZE(lhbm_normal_white_250nit), false);
@@ -2239,17 +2277,23 @@ static int panel_set_lhbm_fod(struct mtk_dsi *dsi, enum local_hbm_state lhbm_sta
 			mi_dsi_panel_set_doze_brightness(dsi, DOZE_TO_NORMAL);
 			mutex_lock(&dsi->dsi_lock);
 			for (i = 0; i < 12; i ++) {
+#ifdef ENABLE_30HZ
 				if (ctx->dynamic_fps != 30 && dynamic_change_fps_going == false)
+#else
+				if (dynamic_change_fps_going == false)
+#endif
 					break;
 				else
 					msleep(5);
 			}
 			pr_info("LOCAL_HBM_NORMAL_WHITE_1200NIT, wait  %dms, ctx->dynamic_fps = %d\n", i*5, ctx->dynamic_fps);
 		}
+#ifdef ENABLE_30HZ
 		if (ctx->dynamic_fps == 30) {
 			pr_info("fps may incorrect, exit 30hz aod first\n");
 			mi_disp_panel_ddic_send_cmd(exit_aod,ARRAY_SIZE(exit_aod), false);
 		}
+#endif
 
 		mi_disp_panel_update_lhbm_A9reg(dsi, TYPE_WHITE_1200, flat_mode, bl_level);
 		mi_disp_panel_ddic_send_cmd(lhbm_normal_white_1200nit,ARRAY_SIZE(lhbm_normal_white_1200nit), false);
@@ -2272,16 +2316,22 @@ static int panel_set_lhbm_fod(struct mtk_dsi *dsi, enum local_hbm_state lhbm_sta
 
 		mi_disp_panel_update_lhbm_A9reg(dsi, TYPE_WHITE_250, flat_mode, bl_level_doze);
 		for (i = 0; i < 12; i ++) {
+#ifdef ENABLE_30HZ
 			if (ctx->dynamic_fps != 30 && dynamic_change_fps_going == false)
+#else
+			if (dynamic_change_fps_going == false)
+#endif
 				break;
 			else
 				msleep(5);
 		}
 		pr_info("LOCAL_HBM_NORMAL_WHITE_250NIT, wait  %dms, ctx->dynamic_fps = %d\n", i*5, ctx->dynamic_fps);
+#ifdef ENABLE_30HZ
 		if (ctx->dynamic_fps == 30) {
 			pr_info("fps may incorrect, exit 30hz aod first\n");
 			mi_disp_panel_ddic_send_cmd(exit_aod,ARRAY_SIZE(exit_aod), false);
 		}
+#endif
 		mi_disp_panel_ddic_send_cmd(lhbm_normal_white_250nit,ARRAY_SIZE(lhbm_normal_white_250nit), false);
 
 		ctx->lhbm_en = true;
@@ -2303,16 +2353,22 @@ static int panel_set_lhbm_fod(struct mtk_dsi *dsi, enum local_hbm_state lhbm_sta
 
 		mi_disp_panel_update_lhbm_A9reg(dsi, TYPE_WHITE_1200, flat_mode, bl_level_doze);
 		for (i = 0; i < 12; i ++) {
+#ifdef ENABLE_30HZ
 			if (ctx->dynamic_fps != 30 && dynamic_change_fps_going == false)
+#else
+			if (dynamic_change_fps_going == false)
+#endif
 				break;
 			else
 				msleep(5);
 		}
 		pr_info("LOCAL_HBM_HLPM_WHITE_1200NIT, wait  %dms, ctx->dynamic_fps = %d\n", i*5, ctx->dynamic_fps);
+#ifdef ENABLE_30HZ
 		if (ctx->dynamic_fps == 30) {
 			pr_info("fps may incorrect, exit 30hz aod first\n");
 			mi_disp_panel_ddic_send_cmd(exit_aod,ARRAY_SIZE(exit_aod), false);
 		}
+#endif
 		mi_disp_panel_ddic_send_cmd(lhbm_normal_white_1200nit,ARRAY_SIZE(lhbm_normal_white_1200nit), false);
 
 		ctx->lhbm_en = true;
@@ -2529,8 +2585,12 @@ struct panel_desc {
 static int lcm_get_modes(struct drm_panel *panel,
 					struct drm_connector *connector)
 {
-	struct drm_display_mode *mode_30, *mode_60, *mode_90, *mode_120;
+#ifdef ENABLE_30HZ
+	struct drm_display_mode *mode_30;
+#endif
+	struct drm_display_mode *mode_60, *mode_90, *mode_120;
 
+#ifdef ENABLE_30HZ
 	mode_30 = drm_mode_duplicate(connector->dev, &mode_30hz);
 	if (!mode_30) {
 		dev_err(connector->dev->dev, "failed to add mode %ux%ux@%u\n",
@@ -2542,6 +2602,7 @@ static int lcm_get_modes(struct drm_panel *panel,
 	drm_mode_set_name(mode_30);
 	mode_30->type = DRM_MODE_TYPE_DRIVER;
 	drm_mode_probed_add(connector, mode_30);
+#endif
 
 	mode_60 = drm_mode_duplicate(connector->dev, &mode_60hz);
 	if (!mode_60) {
