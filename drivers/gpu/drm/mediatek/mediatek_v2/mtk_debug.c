@@ -5656,6 +5656,34 @@ static const struct proc_ops hrt_lp_proc_fops = {
 	.proc_open = hrt_lp_proc_open,
 };
 
+static ssize_t idle_state_show(struct device *device,
+			      struct device_attribute *attr,
+			      char *buf)
+{
+	struct drm_crtc *crtc;
+	int state;
+
+	crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
+				typeof(*crtc), head);
+	if (!crtc) {
+		DDPPR_ERR("find crtc fail\n");
+		return -ENODEV;
+	}
+	state = mtk_drm_is_idle(crtc);
+	if (state < 0) {
+		return -ENODEV;
+	}
+
+	return scnprintf(buf, PAGE_SIZE, "%s\n", state ? "idle" : "active");
+}
+
+static DEVICE_ATTR_RO(idle_state);
+
+static const struct attribute *mtk_idle_attrs[] = {
+	&dev_attr_idle_state.attr,
+	NULL
+};
+
 void disp_dbg_probe(void)
 {
 #if IS_ENABLED(CONFIG_DEBUG_FS)
@@ -5780,6 +5808,11 @@ void disp_dbg_init(struct drm_device *dev)
 		DDPMSG("%s, disp debug init\n", __func__);
 
 	drm_dev = dev;
+
+	if (sysfs_create_files(&(drm_dev)->dev->kobj, mtk_idle_attrs) < 0)
+		pr_warn("[%s %d]failed to create idle state file\n",
+			__func__, __LINE__);
+
 	init_completion(&cwb_cmp);
 
 	for (i = 0; i < MAX_CRTC; ++i)
