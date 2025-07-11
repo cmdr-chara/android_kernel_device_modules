@@ -1,4 +1,5 @@
 . ${ROOT_DIR}/${DEVICE_MODULES_DIR}/build.config.mtk_kernel_device_modules
+. ${ROOT_DIR}/${DEVICE_MODULES_DIR}/build.config.lto_thin
 
 DEFCONFIG_OVERLAYS="malachite.config"
 
