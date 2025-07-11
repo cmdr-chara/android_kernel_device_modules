@@ -1,0 +1,5 @@
+. ${ROOT_DIR}/${DEVICE_MODULES_DIR}/build.config.mtk_kernel_device_modules
+
+DEFCONFIG_OVERLAYS="malachite.config"
+
+TARGET_BUILD_VARIANT=user
