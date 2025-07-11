@@ -13,7 +13,6 @@ mgk_64_k61_defconfig = "mgk_64_k61_defconfig"
 
 mgk_64_k61_kleaf_modules = [
     # keep sorted
-    "//vendor/mediatek/kernel_modules/connectivity/bt/linux_v2:btmtk_uart_unify",
     "//vendor/mediatek/kernel_modules/connectivity/bt/mt66xx:btif",
     "//vendor/mediatek/kernel_modules/connectivity/bt/mt66xx/wmt:wmt",
     #"//vendor/mediatek/kernel_modules/connectivity/bt/mt76xx/sdio:btmtksdio",
@@ -43,17 +42,9 @@ mgk_64_k61_kleaf_modules = [
     "//vendor/mediatek/kernel_modules/connectivity/wlan/core/gen4m/build/connac3x/6989_6639_mp2:wlan_drv_gen4m_6989_6639_mp2",
     "//vendor/mediatek/kernel_modules/cpufreq_cus:cpu_freq",
     "//vendor/mediatek/kernel_modules/cpufreq_int:cpu_hwtest",
-    "//vendor/mediatek/kernel_modules/fpsgo_cus:fpsgo_cus",
-    "//vendor/mediatek/kernel_modules/fpsgo_int:fpsgo_int",
     "//vendor/mediatek/kernel_modules/gpu:gpu",
     "//vendor/mediatek/kernel_modules/hbt_driver_cus:hbt_cus",
     "//vendor/mediatek/kernel_modules/hbt_driver:hbt_int",
-    "//vendor/mediatek/kernel_modules/met_drv_secure_v3:met_drv_secure_v3",
-    "//vendor/mediatek/kernel_modules/met_drv_v3/met_api:met_api_v3_cus",
-    "//vendor/mediatek/kernel_modules/met_drv_v3/met_api:met_api_v3_int",
-    "//vendor/mediatek/kernel_modules/met_drv_v3:met_drv_v3",
-    "//vendor/mediatek/kernel_modules/msync2_frd_cus/build:msync2_frd_cus",
-    "//vendor/mediatek/kernel_modules/msync2_frd_int:msync2_frd_int",
     "//vendor/mediatek/kernel_modules/mtk_input/FT3518U:ft3518u",
     "//vendor/mediatek/kernel_modules/mtk_input/GT9886:gt9886",
     "//vendor/mediatek/kernel_modules/mtk_input/GT9916:gt9916",
@@ -503,7 +494,6 @@ mgk_64_k61_device_modules = [
     "drivers/misc/mediatek/widevine_drm/widevine_driver.ko",
     "drivers/misc/mediatek/wlcdrv/wlcdrv.ko",
     "drivers/misc/mediatek/simtray/simtray.ko",
-    "drivers/misc/xiaomi/mi_memory/mi_memory.ko",
     "drivers/mmc/host/cqhci.ko",
     "drivers/mmc/host/mtk-mmc-dbg.ko",
     "drivers/mmc/host/mtk-wp.ko",
@@ -884,25 +874,11 @@ mgk_64_k61_platform_device_user_modules = {
 
 def get_overlay_modules_list():
     if "fpga.config" in DEFCONFIG_OVERLAYS:
-        mgk_64_k61_kleaf_modules.remove("//vendor/mediatek/kernel_modules/fpsgo_cus:fpsgo_cus")
-        mgk_64_k61_kleaf_modules.remove("//vendor/mediatek/kernel_modules/fpsgo_int:fpsgo_int")
-
-        mgk_64_k61_kleaf_modules.remove("//vendor/mediatek/kernel_modules/met_drv_secure_v3:met_drv_secure_v3")
-        mgk_64_k61_kleaf_modules.append("//vendor/mediatek/kernel_modules/met_drv_secure_v3:met_drv_secure_v3_default")
-        mgk_64_k61_kleaf_modules.remove("//vendor/mediatek/kernel_modules/met_drv_v3/met_api:met_api_v3_cus")
-        mgk_64_k61_kleaf_modules.remove("//vendor/mediatek/kernel_modules/met_drv_v3/met_api:met_api_v3_int")
-        mgk_64_k61_kleaf_modules.remove("//vendor/mediatek/kernel_modules/met_drv_v3:met_drv_v3")
-        mgk_64_k61_kleaf_modules.append("//vendor/mediatek/kernel_modules/met_drv_v3:met_drv_v3_default")
-
-        mgk_64_k61_kleaf_modules.remove("//vendor/mediatek/kernel_modules/msync2_frd_cus/build:msync2_frd_cus")
-        mgk_64_k61_kleaf_modules.remove("//vendor/mediatek/kernel_modules/msync2_frd_int:msync2_frd_int")
-
         mgk_64_k61_kleaf_eng_modules.remove("//vendor/mediatek/tests/kernel/ktf_testcase:ktf_testcase")
         mgk_64_k61_kleaf_eng_modules.append("//vendor/mediatek/tests/kernel/ktf_testcase:ktf_testcase_fpga")
         mgk_64_k61_kleaf_userdebug_modules.remove("//vendor/mediatek/tests/kernel/ktf_testcase:ktf_testcase")
         mgk_64_k61_kleaf_userdebug_modules.append("//vendor/mediatek/tests/kernel/ktf_testcase:ktf_testcase_fpga")
 
-        mgk_64_k61_device_modules.remove("drivers/misc/mediatek/performance/fpsgo_v3/mtk_fpsgo.ko")
         mgk_64_k61_device_modules.remove("drivers/misc/mediatek/performance/frs/frs.ko")
 
     if "wifionly.config" in DEFCONFIG_OVERLAYS:
