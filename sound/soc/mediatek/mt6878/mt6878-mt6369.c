@@ -17,6 +17,7 @@
 #include "mt6878-afe-gpio.h"
 #include "../../codecs/mt6369.h"
 #include "../common/mtk-sp-spk-amp.h"
+
 /*
  * if need additional control for the ext spk amp that is connected
  * after Lineout Buffer / HP Buffer on the codec, put the control in

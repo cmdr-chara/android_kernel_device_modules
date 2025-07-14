@@ -635,6 +635,8 @@ mgk_64_k61_device_modules = [
     "sound/soc/codecs/snd-soc-mt6368.ko",
     "sound/soc/codecs/snd-soc-mt6369.ko",
     "sound/soc/codecs/snd-soc-mt6681.ko",
+    "sound/soc/codecs/sia81xx/snd-soc-sipa.ko",
+    "sound/soc/codecs/sia81xx/snd-soc-sipa-tuning.ko",
     "sound/soc/mediatek/audio_dsp/mtk-soc-offload-common.ko",
     "sound/soc/mediatek/audio_dsp/snd-soc-audiodsp-common.ko",
     "sound/soc/mediatek/audio_scp/mtk-scp-audiocommon.ko",

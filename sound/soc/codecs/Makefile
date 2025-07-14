@@ -42,3 +42,4 @@ obj-$(CONFIG_SND_SOC_TFA9874)	+= tfa98xx/
 obj-$(CONFIG_USB_SWITCH_ET7480) += et7480/
 obj-$(CONFIG_SND_SMARTPA_AW882XX) += aw882xx/
 obj-$(CONFIG_SND_SOC_FS1XXX) += fs19xx/
+obj-y += sia81xx/
