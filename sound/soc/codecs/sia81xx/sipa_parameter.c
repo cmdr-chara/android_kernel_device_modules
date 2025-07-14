@@ -224,7 +224,7 @@ void sipa_param_load_fw(struct device *dev, char *fwname)
 #ifndef LOAD_FW_BY_DELAY_WORK
 	request_firmware_nowait(
 		THIS_MODULE,
-		FW_ACTION_HOTPLUG,
+		FW_ACTION_UEVENT,
 		fwname,
 		dev,
 		GFP_KERNEL,

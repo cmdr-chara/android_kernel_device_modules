@@ -8,10 +8,6 @@
 #include <linux/firmware.h>
 #include <linux/slab.h>
 
-#ifndef FW_ACTION_HOTPLUG
-#define FW_ACTION_HOTPLUG 1
-#endif
-
 static int g_fsm_fw_init = 0;
 
 #ifdef FSM_UNUSED_CODE
@@ -77,7 +73,7 @@ int fsm_firmware_init(char *fw_name)
 	}
 
 	pr_info("loading %s in nowait mode", fw_name);
-	ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+	ret = request_firmware_nowait(THIS_MODULE, FW_ACTION_UEVENT,
 			fw_name, dev, GFP_KERNEL,
 			dev, fsm_firmware_inited);
 	if (ret) {
