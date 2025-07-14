@@ -936,7 +936,7 @@ static int sipa_scene_set(struct sipa_dev_s *si_pa, unsigned int scene)
 
 	if (AUDIO_SCENE_NUM <= scene) {
 		si_pa->scene = AUDIO_SCENE_PLAYBACK;
-		pr_err("[  err][%s] %s: set audio scene val = %ld !!! \r\n",
+		pr_err("[  err][%s] %s: set audio scene val = %u !!! \r\n",
 			LOG_FLAG, __func__, scene);
 	} else {
 		si_pa->scene = scene;
@@ -1454,7 +1454,7 @@ static int sipa_audio_scene_set(
 	sipa_dev_t *si_pa = snd_soc_codec_get_drvdata(codec);
 #endif
 	uint32_t scene = ucontrol->value.integer.value[0];
-	pr_debug("[debug][%s] %s: ucontrol = %ld, rst = %d, channel = %d \r\n",
+	pr_debug("[debug][%s] %s: ucontrol = %u, rst = %d, channel = %d \r\n",
 		LOG_FLAG, __func__, scene, si_pa->rst_pin, si_pa->channel_num);
 
 	sipa_scene_set(si_pa, scene);
@@ -2196,17 +2196,16 @@ int sipa_i2c_probe(
 }
 EXPORT_SYMBOL(sipa_i2c_probe);
 
-int sipa_i2c_remove(
+void sipa_i2c_remove(
 	struct i2c_client *client)
 {
-	int ret = 0;
 	sipa_dev_t *si_pa = NULL;
 
 	pr_info("[ info][%s] %s: remove \r\n", LOG_FLAG, __func__);
 
 	si_pa = (sipa_dev_t *)dev_get_drvdata(&client->dev);
 	if (NULL == si_pa)
-		return 0;
+		return;
 
 #ifdef SIA91XX_TYPE
 	cancel_delayed_work_sync(&si_pa->interrupt_work);
@@ -2219,8 +2218,6 @@ int sipa_i2c_remove(
 	si_pa->client = NULL;
 
 	put_sipa_dev(si_pa);
-
-	return ret;
 }
 EXPORT_SYMBOL(sipa_i2c_remove);
 

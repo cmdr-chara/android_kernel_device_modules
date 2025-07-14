@@ -124,7 +124,7 @@ static long sipa_tuning_cmd_unlocked_ioctl(struct file *fp,
                 return -EFAULT;
             }
             if (fwname.len > sizeof(fwname.boxname)) {
-                pr_err("%s: input too long, len:%d, maxlen:%d\n", __func__, fwname.len, sizeof(fwname.boxname));
+                pr_err("%s: input too long, len:%hhu, maxlen:%lu\n", __func__, fwname.len, sizeof(fwname.boxname));
                 return -EFAULT;
             }
 			pstr = (char*)arg + 1;

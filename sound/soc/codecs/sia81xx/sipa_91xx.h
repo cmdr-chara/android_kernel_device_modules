@@ -77,6 +77,6 @@ int sia91xx_append_i2c_address(
 int sia91xx_dsp_start(sipa_dev_t *si_pa, int stream);
 int sia91xx_soft_mute(sipa_dev_t *si_pa);
 int sipa_i2c_probe(struct i2c_client *i2c, const struct i2c_device_id *id);
-int sipa_i2c_remove(struct i2c_client *i2c);
+void sipa_i2c_remove(struct i2c_client *i2c);
 
 #endif /* _SIPA_91XX_H */
