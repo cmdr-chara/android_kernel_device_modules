@@ -911,6 +911,14 @@ SND_SOC_DAILINK_DEFS(dspmdul,
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-audio-dsp")));
 #endif
 
+static struct snd_soc_dai_link_component fs1xxx_codecs[] = {
+    {
+        .name = "fs16xx_smartpa_0",
+        .of_node = NULL,
+        .dai_name = "fs16xx-aif",
+    },
+};
+
 static struct snd_soc_dai_link mt6878_mt6369_dai_links[] = {
 	/* Front End DAI links */
 	{
@@ -1404,6 +1412,8 @@ static struct snd_soc_dai_link mt6878_mt6369_dai_links[] = {
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_CBS_CFS
 			| SND_SOC_DAIFMT_GATED,
 		.ops = &mt6878_mt6369_i2s_ops,
+		.codecs = fs1xxx_codecs,
+		.num_codecs = ARRAY_SIZE(fs1xxx_codecs),
 		.no_pcm = 1,
 		.dpcm_capture = 1,
 		.ignore_suspend = 1,
@@ -1438,6 +1448,8 @@ static struct snd_soc_dai_link mt6878_mt6369_dai_links[] = {
 		.dai_fmt = SND_SOC_DAIFMT_I2S | SND_SOC_DAIFMT_CBS_CFS
 			| SND_SOC_DAIFMT_GATED,
 		.ops = &mt6878_mt6369_i2s_ops,
+		.codecs = fs1xxx_codecs,
+		.num_codecs = ARRAY_SIZE(fs1xxx_codecs),
 		.no_pcm = 1,
 		.dpcm_playback = 1,
 		.ignore_suspend = 1,
