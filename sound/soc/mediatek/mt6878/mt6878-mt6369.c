@@ -17,6 +17,7 @@
 #include "mt6878-afe-gpio.h"
 #include "../../codecs/mt6369.h"
 #include "../common/mtk-sp-spk-amp.h"
+#include "../../codecs/sia81xx/sipa_aux_dev_if.h"
 
 /*
  * if need additional control for the ext spk amp that is connected
@@ -30,7 +31,6 @@
 #if IS_ENABLED(CONFIG_SND_SOC_MT6369_ACCDET) && !defined(BYPASS_FOR_61_BRINGUP)
 #include "../../codecs/mt6369-accdet.h"
 #endif
-
 
 static struct snd_soc_card mt6878_mt6369_soc_card;
 
@@ -1870,6 +1870,11 @@ static int mt6878_mt6369_dev_probe(struct platform_device *pdev)
 		mt6878_mt6369_bypass_primary_codec(pdev);
 
 	card->dev = &pdev->dev;
+
+        ret = soc_aux_init_only_sia81xx(pdev, card);
+	if (ret)
+		dev_err(&pdev->dev, "%s soc_aux_init_only_sia81xx fail %d\n",
+			__func__, ret);
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret)
