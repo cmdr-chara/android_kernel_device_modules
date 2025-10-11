@@ -162,3 +162,6 @@ x509.genkey
 
 # Documentation toolchain
 sphinx_*/
+
+# Keep dummy fw_sample.i for focaltech touch
+!drivers/input/touchscreen/ft3683g/include/firmware/fw_sample.i
