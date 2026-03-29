@@ -436,14 +436,6 @@ static inline ulong64 ROR64(ulong64 word, int i)
 
 #endif
 
-#ifndef MAX
-   #define MAX(x, y) ( ((x)>(y))?(x):(y) )
-#endif
-
-#ifndef MIN
-   #define MIN(x, y) ( ((x)<(y))?(x):(y) )
-#endif
-
 #ifndef LTC_UNUSED_PARAM
    #define LTC_UNUSED_PARAM(x) (void)(x)
 #endif
