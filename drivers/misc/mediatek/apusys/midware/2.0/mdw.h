@@ -313,6 +313,7 @@ struct mdw_fpriv {
 	void (*put)(struct mdw_fpriv *mpriv);
 
 	/* cmd history */
+	struct mutex ch_mtx;
 	struct list_head ch_list;
 	uint32_t cmd_cnt;
 

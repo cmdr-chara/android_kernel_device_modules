@@ -475,7 +475,9 @@ static int mdw_cmd_history_tbl_create(struct mdw_fpriv *mpriv, struct mdw_cmd *c
 	ch_tbl->num_subcmds = c->num_subcmds;
 
 	/* add history tbl node to list */
+	mutex_lock(&mpriv->ch_mtx);
 	list_add_tail(&ch_tbl->ch_tbl_node , &mpriv->ch_list);
+	mutex_unlock(&mpriv->ch_mtx);
 
 	if (!ch_tbl->h_sc_einfo) {
 		ret = -ENOMEM;
@@ -505,6 +507,7 @@ static void mdw_cmd_history_tbl_delete(struct mdw_fpriv *mpriv)
 {
 	struct mdw_cmd_history_tbl *ch_tbl = NULL, *tmp = NULL;
 
+	mutex_lock(&mpriv->ch_mtx);
 	list_for_each_entry_safe(ch_tbl, tmp, &mpriv->ch_list, ch_tbl_node) {
 		list_del(&ch_tbl->ch_tbl_node);
 		mdw_cmd_debug("s(0x%llx) uid(0x%llx) delete ch_tbl\n",
@@ -512,6 +515,8 @@ static void mdw_cmd_history_tbl_delete(struct mdw_fpriv *mpriv)
 		kfree(ch_tbl->h_sc_einfo);
 		kfree(ch_tbl);
 	}
+	mutex_unlock(&mpriv->ch_mtx);
+
 	mdw_cmd_history_reset(mpriv);
 }
 
@@ -955,14 +960,18 @@ struct mdw_cmd_history_tbl *mdw_cmd_ch_tbl_find(struct mdw_cmd *c)
 	struct mdw_cmd_history_tbl *ch_tbl = NULL;
 	struct mdw_fpriv *mpriv = c->mpriv;
 
+	mutex_lock(&mpriv->ch_mtx);
 	list_for_each_entry(ch_tbl, &mpriv->ch_list, ch_tbl_node) {
 		if(ch_tbl->uid == c->uid) {
 			mdw_flw_debug("find ch_tbl uid(0x%llx)\n", c->uid);
-			return ch_tbl;
+			goto out;
 		}
 	}
+	ch_tbl = NULL;
 
-	return NULL;
+out:
+	mutex_unlock(&mpriv->ch_mtx);
+	return ch_tbl;
 }
 
 void mdw_cmd_history_init(struct mdw_device *mdev)
