@@ -13,6 +13,7 @@
 
 #include <linux/bitfield.h>
 #include <linux/bits.h>
+#include <linux/iova.h>
 #include <linux/io-pgtable.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
@@ -88,6 +89,9 @@
 
 #define IOVA_DUMP_RS_INTERVAL		DEFAULT_RATELIMIT_INTERVAL
 #define IOVA_DUMP_RS_BURST		(1)
+
+#define IOMMU_DEFAULT_IOVA_MAX_ALIGN_SHIFT	9
+static unsigned long iommu_max_align_shift __read_mostly = IOMMU_DEFAULT_IOVA_MAX_ALIGN_SHIFT;
 
 struct mtk_iommu_cb {
 	int port;
@@ -657,6 +661,34 @@ static int mtk_iommu_port_idx(int id, enum mtk_iommu_type type)
 	return port_nr;
 }
 
+int mtk_iommu_skip_aee_report(enum mtk_iommu_type type, u64 fault_iova, int idx)
+{
+	const struct mtk_iommu_port *port_list;
+	static int mt6878_idx[] = {1, 3, 7, 9};
+	static int mt6897_idx[] = {0, 3, 9, 12};
+	int i;
+
+	if ((type == MM_IOMMU) && (fault_iova == 0)) {
+		port_list = m4u_data->plat_data->port_list[type];
+		/* Work around for display driver issue mt6878 mt6897 */
+		if (port_list == &mm_port_mt6878[0]) {
+			for (i = 0; i < ARRAY_SIZE(mt6878_idx); i++) {
+				if (idx == mt6878_idx[i])
+					return 1;
+			}
+		}
+
+		if (port_list == &mm_port_mt6897[0]) {
+			for (i = 0; i < ARRAY_SIZE(mt6897_idx); i++) {
+				if (idx == mt6897_idx[i])
+					return 1;
+			}
+		}
+
+	}
+	return 0;
+}
+
 static void report_custom_fault(
 	u64 fault_iova, u64 fault_pa,
 	u32 fault_id, u32 type, int id)
@@ -698,6 +730,9 @@ static void report_custom_fault(
 			m4u_data->m4u_cb[idx].fault_fn(m4u_data->m4u_cb[idx].port,
 			fault_iova, m4u_data->m4u_cb[idx].fault_data);
 	}
+
+	if (mtk_iommu_skip_aee_report(type, fault_iova, idx))
+		return;
 
 	m4u_aee_print(mmu_translation_log_format,
 		(smmu_v3_enable ? "SMMU" : "M4U"),
@@ -2514,6 +2549,20 @@ static void free_iova_hook(void *data,
 	return mtk_iova_dbg_free(iovad, iova, size);
 }
 
+static unsigned long limit_align_shift(struct iova_domain *iovad, unsigned long shift)
+{
+	unsigned long max_align_shift;
+
+	max_align_shift = iommu_max_align_shift + PAGE_SHIFT - iova_shift(iovad);
+	return min_t(unsigned long, max_align_shift, shift);
+}
+
+static void limit_align_hook(void __always_unused *data, struct iova_domain *iovad,
+			     unsigned long size, unsigned long *shift)
+{
+	*shift = limit_align_shift(iovad, *shift);
+}
+
 static int mtk_m4u_dbg_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -2545,6 +2594,10 @@ static int mtk_m4u_dbg_probe(struct platform_device *pdev)
 	ret = register_trace_android_vh_iommu_iovad_free_iova(free_iova_hook,
 							      "mtk_m4u_dbg_probe");
 	pr_debug("add free iova hook %s\n", (ret ? "fail" : "pass"));
+
+	ret = register_trace_android_rvh_iommu_limit_align_shift(limit_align_hook,
+								 "mtk_m4u_dbg_probe");
+	pr_debug("add limit align shift hook %s\n", (ret ? "fail" : "pass"));
 
 	return 0;
 }

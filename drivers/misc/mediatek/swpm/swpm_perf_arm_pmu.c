@@ -9,8 +9,8 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/perf_event.h>
-#include <linux/perf/arm_pmuv3.h>
 #include <linux/workqueue.h>
+#include <linux/perf/arm_pmuv3.h>
 
 #include <swpm_perf_arm_pmu.h>
 

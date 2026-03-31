@@ -742,7 +742,8 @@ int slbc_request(struct slbc_data *d)
 #else
 		slbc_ref++;
 #endif /* CONFIG_MTK_SLBC_IPI */
-		if (d->uid == UID_MM_VENC || d->uid == UID_MM_VENC_FHD) {
+		if (d->uid == UID_MM_VENC || d->uid == UID_MM_VENC_FHD ||
+				d->uid == UID_MM_VENC_SL) {
 			if (venc_count == 0)
 				slbc_smc_send(MTK_SLBC_KERNEL_OP_CPU_DCC, 0, 0);
 			venc_count++;
@@ -807,7 +808,8 @@ int slbc_release(struct slbc_data *d)
 #else
 		slbc_ref--;
 #endif /* CONFIG_MTK_SLBC_IPI */
-		if (d->uid == UID_MM_VENC || d->uid == UID_MM_VENC_FHD) {
+		if (d->uid == UID_MM_VENC || d->uid == UID_MM_VENC_FHD ||
+				d->uid == UID_MM_VENC_SL) {
 			venc_count--;
 			if (venc_count == 0)
 				slbc_smc_send(MTK_SLBC_KERNEL_OP_CPU_DCC, 1, 1);

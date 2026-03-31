@@ -19,6 +19,8 @@
 #include <linux/usb/role.h>
 #include <linux/workqueue.h>
 #include <linux/proc_fs.h>
+/* P16 code for charge:HQFEAT-102878 by p-hankang1 at 20250630*/
+#include <linux/delay.h>
 
 #include "extcon-mtk-usb.h"
 
@@ -129,6 +131,7 @@ static bool usb_is_online(struct mtk_extcon_info *extcon)
 		return false;
 }
 
+extern int online_status;
 static void mtk_usb_extcon_psy_detector(struct work_struct *work)
 {
 	struct mtk_extcon_info *extcon = container_of(to_delayed_work(work),
@@ -137,10 +140,10 @@ static void mtk_usb_extcon_psy_detector(struct work_struct *work)
 	/* Workaround for PR_SWAP, IF tcpc_dev, then do not switch role. */
 	/* Since we will set USB to none when type-c plug out */
 	if (extcon->tcpc_dev) {
-		if (usb_is_online(extcon) && extcon->c_role == USB_ROLE_NONE)
+		if (usb_is_online(extcon) && extcon->c_role == USB_ROLE_NONE && online_status)
 			mtk_usb_extcon_set_role(extcon, USB_ROLE_DEVICE);
 	} else {
-		if (usb_is_online(extcon))
+		if (usb_is_online(extcon) && online_status)
 			mtk_usb_extcon_set_role(extcon, USB_ROLE_DEVICE);
 		else
 			mtk_usb_extcon_set_role(extcon, USB_ROLE_NONE);
@@ -347,6 +350,8 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 	struct mtk_extcon_info *extcon =
 			container_of(nb, struct mtk_extcon_info, tcpc_nb);
 	struct device *dev = extcon->dev;
+	/* P16 code for charge:HQFEAT-102878 by p-hankang1 at 20250630*/
+	static int count;
 	bool vbus_on;
 
 	switch (event) {
@@ -385,17 +390,31 @@ static int mtk_extcon_tcpc_notifier(struct notifier_block *nb,
 	case TCP_NOTIFY_DR_SWAP:
 		dev_info(dev, "%s dr_swap, new role=%d\n",
 				__func__, noti->swap_state.new_role);
+/* P16 code for charge:HQFEAT-102878 by p-hankang1 at 20250630 start */
+DelayforSwap:
 		if (noti->swap_state.new_role == PD_ROLE_UFP &&
 				extcon->c_role != USB_ROLE_DEVICE) {
 			dev_info(dev, "switch role to device\n");
 			mtk_usb_extcon_set_role(extcon, USB_ROLE_NONE);
 			mtk_usb_extcon_set_role(extcon, USB_ROLE_DEVICE);
+			count = 0;
 		} else if (noti->swap_state.new_role == PD_ROLE_DFP &&
 				extcon->c_role != USB_ROLE_HOST) {
 			dev_info(dev, "switch role to host\n");
 			mtk_usb_extcon_set_role(extcon, USB_ROLE_NONE);
 			mtk_usb_extcon_set_role(extcon, USB_ROLE_HOST);
+			count = 0;
+		} else {
+			count++;
+			if (count > 5) {
+				count = 0;
+				break;
+			}
+			dev_info(dev, "Delay for swap... count = %d \n", count);
+			mdelay(100);
+			goto DelayforSwap;
 		}
+/* P16 code for charge:HQFEAT-102878 by p-hankang1 at 20250630 end*/
 		break;
 	}
 

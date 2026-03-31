@@ -101,8 +101,16 @@ obj-$(CONFIG_DEVICE_MODULES_MTK_SMI) += smi/
 obj-$(CONFIG_INTERCONNECT_MTK_MMQOS_COMMON) += mmqos/
 obj-$(CONFIG_MTK_GATE_IC) += gate_ic/
 obj-$(CONFIG_USB) += usb/
+obj-$(CONFIG_AWINIC_HAPTIC_HV) += aw_haptic/
+obj-$(CONFIG_MTK_ULTRASND_PROXIMITY) += elliptic/
 obj-$(CONFIG_MTK_WIDEVINE_DRM) += widevine_drm/
 obj-$(CONFIG_MTK_PGBOOST) += pgboost/
 obj-$(CONFIG_MTK_MBRAINK)      += mbraink/
+obj-$(CONFIG_SIH_VIBRATOR)      += SIH6887/
 obj-$(CONFIG_MTK_IPS_HELPER) += ips/
+obj-$(CONFIG_CUSTOM_BOB63810) += BOB63810.o
+# P16/P16P code for HQFEAT-89765 by p-yinjieru at 2025/02/26
+obj-$(CONFIG_SIMTRAY_STATUS) += simtray/
+# P16/P16P code for HQFEAT-89663 by p-yinjieru at 2025/03/10
+obj-$(CONFIG_CPUMAXFREQ_SUPPORT) += cpumaxfreq/
 

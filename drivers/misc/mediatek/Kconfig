@@ -28,6 +28,11 @@ source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/mdpm/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/pbm/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/cg_ppt/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/ips/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/aw_haptic/Kconfig"
+# P16/P16P code for HQFEAT-89765 by p-yinjieru at 2025/02/26
+source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/simtray/Kconfig"
+# P16/P16P code for HQFEAT-89663 by p-yinjieru at 2025/03/10
+source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/cpumaxfreq/Kconfig"
 
 config MTK_WWAN_PWRCTL_SUPPORT
 	bool "Thin modem Power Control driver"
@@ -206,9 +211,11 @@ source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/audio_ipi/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/irtx/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/pwm/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/sensor/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/elliptic/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/gate_ic/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/usb/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/mbraink/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/SIH6887/Kconfig"
 endmenu # Other Peripheral
 
 menu "Performance"
@@ -247,6 +254,13 @@ config EXT_MODULES
 endmenu # Config
 
 menu "Misc configs"
+config CUSTOM_BOB63810
+	tristate "CUSTOM BOB63810"
+	help
+	  Used for set BOB63810 work in FPWM.
+	  Say M here if you need to switch BOB63810 work mode.
+	  If unsure, say N
+
 config FPGA_EARLY_PORTING
 	bool "MTK FPGA EARLY PORTING"
 	help
