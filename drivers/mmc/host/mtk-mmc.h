@@ -465,6 +465,7 @@ struct mtk_mmc_compatible {
 	bool busy_check;
 	struct stop_clock_type stop_clk_set;
 	struct msdc_infra_check infra_check;
+	bool sw_infra_check;
 	bool enhance_rx;
 	bool support_64g;
 	bool use_internal_cd;
@@ -479,6 +480,7 @@ struct mtk_mmc_compatible {
 #define support_new_rx(x)	((x) != 0)
 	bool set_crypto_enable_in_sw;
 	bool need_power_voter;
+	bool hs400_free_run;
 };
 
 struct msdc_tune_para {
