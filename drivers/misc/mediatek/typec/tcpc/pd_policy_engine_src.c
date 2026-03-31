@@ -34,12 +34,11 @@ void pe_src_discovery_entry(struct pd_port *pd_port)
 	 */
 
 	pd_port->pe_data.pd_connected = false;
+	pd_init_spec_revision(pd_port);
 
-#if CONFIG_USB_PD_SRC_STARTUP_DISCOVER_ID
 	if (pd_is_discover_cable(pd_port) &&
 	    !pd_port->pe_data.cable_discovered_state)
 		pd_enable_timer(pd_port, PD_TIMER_DISCOVER_ID);
-#endif	/* CONFIG_USB_PD_SRC_STARTUP_DISCOVER_ID */
 
 	pd_enable_timer(pd_port, PD_TIMER_SOURCE_CAPABILITY);
 }
@@ -67,7 +66,7 @@ void pe_src_transition_supply_entry(struct pd_port *pd_port)
 	struct pd_event *pd_event = pd_get_curr_pd_event(pd_port);
 
 	/* goto-min */
-	if (pd_event->event_type == PD_EVT_TCP_MSG)	 {
+	if (pd_event->event_type == PD_EVT_TCP_MSG) {
 		msg = PD_CTRL_GOTO_MIN;
 		pd_port->request_i_new = pd_port->request_i_op;
 	}
@@ -78,6 +77,11 @@ void pe_src_transition_supply_entry(struct pd_port *pd_port)
 void pe_src_transition_supply2_entry(struct pd_port *pd_port)
 {
 	PE_STATE_WAIT_TX_SUCCESS(pd_port);
+
+	if (pd_port->is_bq_cp) {
+		DPM_DBG("DBG:Is BQ chargerpump\n");
+		usleep_range(300000, 305000);
+	}
 
 	pd_send_sop_ctrl_msg(pd_port, PD_CTRL_PS_RDY);
 }
@@ -138,10 +142,9 @@ void pe_src_get_sink_cap_exit(struct pd_port *pd_port)
 	pd_dpm_dr_inform_sink_cap(pd_port);
 }
 
-void pe_src_wait_new_capabilities_entry(
-			struct pd_port *pd_port)
+void pe_src_wait_new_capabilities_entry(struct pd_port *pd_port)
 {
-	/* Wait for new Source Capabilities */
+	tcpci_notify_wait_new_cap(pd_port->tcpc);
 }
 
 void pe_src_send_soft_reset_entry(struct pd_port *pd_port)
@@ -159,9 +162,6 @@ void pe_src_soft_reset_entry(struct pd_port *pd_port)
  Source Startup Structured VDM Discover Identity State Diagram (TODO)
  */
 
-#if CONFIG_USB_PD_SRC_STARTUP_DISCOVER_ID
-
-#if CONFIG_PD_SRC_RESET_CABLE
 void pe_src_cbl_send_soft_reset_entry(struct pd_port *pd_port)
 {
 	PE_STATE_WAIT_RESPONSE(pd_port);
@@ -170,13 +170,12 @@ void pe_src_cbl_send_soft_reset_entry(struct pd_port *pd_port)
 
 	pd_send_cable_soft_reset(pd_port);
 }
-#endif	/* CONFIG_PD_SRC_RESET_CABLE */
 
 void pe_src_vdm_identity_request_entry(struct pd_port *pd_port)
 {
 	pd_set_rx_enable(pd_port, PD_RX_CAP_PE_DISCOVER_CABLE);
 
-	pd_port->pe_data.discover_id_counter++;
+	pd_port->pe_data.discover_cable_id_counter++;
 	pd_send_vdm_discover_id(pd_port, TCPC_TX_SOP_PRIME);
 }
 
@@ -189,9 +188,6 @@ void pe_src_vdm_identity_naked_entry(struct pd_port *pd_port)
 {
 	pd_dpm_inform_cable_id(pd_port, false, true);
 }
-
-#endif	/* CONFIG_USB_PD_SRC_STARTUP_DISCOVER_ID */
-
 
 #if CONFIG_USB_PD_REV30
 
@@ -296,7 +292,7 @@ void pe_src_give_pps_status_entry(struct pd_port *pd_port)
 	PE_STATE_WAIT_TX_SUCCESS(pd_port);
 
 	/* TODO */
-	PD_BUG_ON(1);
+	PD_WARN_ON(1);
 }
 #endif	/* CONFIG_USB_PD_REV30_PPS_SOURCE */
 

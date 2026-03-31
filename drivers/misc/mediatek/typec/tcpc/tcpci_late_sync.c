@@ -3,8 +3,8 @@
  * Copyright (c) 2020 MediaTek Inc.
  */
 
-#include <linux/init.h>
 #include <linux/module.h>
+#include <linux/init.h>
 #include <linux/device.h>
 #include <linux/version.h>
 #include <linux/slab.h>

@@ -101,9 +101,6 @@ static void dp_dfp_u_set_state(struct pd_port *pd_port, uint8_t state)
 bool dp_dfp_u_notify_pe_startup(
 		struct pd_port *pd_port, struct svdm_svid_data *svid_data)
 {
-	if (!pd_is_support_modal_operation(pd_port))
-		return false;
-
 	if (pd_port->dpm_caps & DPM_CAP_ATTEMPT_ENTER_DP_MODE)
 		dp_dfp_u_set_state(pd_port, DP_DFP_U_DISCOVER_ID);
 
@@ -116,7 +113,7 @@ bool dp_dfp_u_notify_pe_ready(
 	struct dp_data *dp_data = pd_get_dp_data(pd_port);
 	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
 
-	DPM_DBG("DPM: %s\n", __func__);
+	DP_DBG("DP: %s\n", __func__);
 
 	if (pd_port->data_role != PD_ROLE_DFP)
 		return false;
@@ -300,12 +297,12 @@ static inline uint8_t dp_dfp_u_select_mode(struct pd_port *pd_port,
 		}
 	}
 
-#if DP_INFO_ENABLE
+#if DP_DBG_ENABLE
 	for (i = 0; i < remote->mode_cnt; i++)
-		DP_INFO("Mode%d=0x%08x\n", i, remote->mode_vdo[i]);
+		DP_DBG("Mode%d=0x%08x\n", i, remote->mode_vdo[i]);
 
-	DP_INFO("SelectMode:%d\n", remote_index);
-#endif	/* DP_INFO_ENABLE */
+	DP_DBG("SelectMode:%d\n", remote_index);
+#endif	/* DP_DBG_ENABLE */
 
 	return remote_index + 1;
 }
@@ -335,7 +332,7 @@ bool dp_dfp_u_notify_discover_modes(
 		pd_port, dp_data, svid_data);
 
 	if (pd_port->mode_obj_pos == 0) {
-		DPM_DBG("Can't find match mode\n");
+		DP_DBG("Can't find match mode\n");
 		dp_dfp_u_set_state(pd_port, DP_DFP_U_ERR_DISCOVER_MODES_CAP);
 		return false;
 	}
@@ -349,9 +346,10 @@ bool dp_dfp_u_notify_discover_modes(
 		pd_port->cable_mode_svid = 0;
 		pd_port->cable_mode_obj_pos = 0;
 		pd_port->cable_svid_to_discover = 0;
-		pd_port->pe_data.discover_id_counter = 0;
+		pd_port->pe_data.discover_cable_id_counter = 0;
 		pd_port->pe_data.cable_discovered_state = CABLE_DISCOVERED_NONE;
 		dp_dfp_u_set_state(pd_port, DP_DFP_U_DISCOVER_CABLE);
+		pd_port->dp_v21 = true;
 		dpm_reaction_set(pd_port, DPM_REACTION_DISCOVER_CABLE_FLOW);
 	} else {
 		dp_dfp_u_set_state(pd_port, DP_DFP_U_ENTER_MODE);
@@ -450,8 +448,8 @@ static inline bool dp_dfp_u_select_pin_mode(struct pd_port *pd_port)
 		return false;
 	}
 
-	PE_DBG("modes=0x%x 0x%x\n", dp_mode[0], dp_mode[1]);
-	PE_DBG("pins=0x%x 0x%x\n", pin_cap[0], pin_cap[1]);
+	DP_DBG("modes=0x%x 0x%x\n", dp_mode[0], dp_mode[1]);
+	DP_DBG("pins=0x%x 0x%x\n", pin_cap[0], pin_cap[1]);
 
 	pin_caps = pin_cap[0] & pin_cap[1];
 
@@ -546,7 +544,7 @@ static inline bool dp_dfp_u_update_dp_connected(struct pd_port *pd_port)
 			pd_port, dp_local_connected, false);
 
 		if (!valid_connected) {
-			DP_INFO("BOTH_SEL_ONE\n");
+			DP_DBG("BOTH_SEL_ONE\n");
 			pd_put_tcp_vdm_event(pd_port,
 				TCP_DPM_EVT_DP_STATUS_UPDATE);
 		}
@@ -560,7 +558,7 @@ static bool dp_dfp_u_notify_dp_status_update(struct pd_port *pd_port, bool ack)
 {
 	bool oper_mode = false;
 	bool valid_connected = true;
-	uint32_t *ptr;
+	uint32_t *payload;
 	struct dp_data *dp_data = pd_get_dp_data(pd_port);
 	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
 
@@ -587,11 +585,11 @@ static bool dp_dfp_u_notify_dp_status_update(struct pd_port *pd_port, bool ack)
 		return false;
 	}
 
-	ptr = pd_get_msg_vdm_data_payload(pd_port);
-	if (!ptr)
+	payload = pd_get_msg_vdm_data_payload(pd_port);
+	if (!payload)
 		dp_data->remote_status = 0;
 	else
-		dp_data->remote_status = ptr[0];
+		dp_data->remote_status = payload[0];
 	DP_INFO("dp_status: 0x%x\n", dp_data->remote_status);
 
 	if (oper_mode) {
@@ -648,14 +646,13 @@ bool dp_dfp_u_notify_attention(struct pd_port *pd_port,
 {
 	bool valid_connected = true;
 	struct dp_data *dp_data = pd_get_dp_data(pd_port);
-	uint32_t *ptr;
+	uint32_t *payload = pd_get_msg_vdm_data_payload(pd_port);
 	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
 
-	ptr = pd_get_msg_vdm_data_payload(pd_port);
-	if (!ptr)
+	if (!payload)
 		dp_data->remote_status = 0;
 	else
-		dp_data->remote_status = ptr[0];
+		dp_data->remote_status = payload[0];
 
 	DP_INFO("dp_status: 0x%x\n", dp_data->remote_status);
 
@@ -871,14 +868,14 @@ next_state:
 
 /* DP : UFP_U */
 
-#if DPM_DBG_ENABLE
+#if DP_DBG_ENABLE
 static const char * const dp_ufp_u_state_name[] = {
 	"dp_ufp_u_none",
 	"dp_ufp_u_startup",
 	"dp_ufp_u_wait",
 	"dp_ufp_u_operation",
 };
-#endif /* DPM_DBG_ENABLE */
+#endif /* DP_DBG_ENABLE */
 
 static void dp_ufp_u_set_state(struct pd_port *pd_port, uint8_t state)
 {
@@ -888,9 +885,9 @@ static void dp_ufp_u_set_state(struct pd_port *pd_port, uint8_t state)
 	dp_data->ufp_u_state = state;
 
 	if (dp_data->ufp_u_state < DP_UFP_U_STATE_NR)
-		DPM_DBG("%s\n", dp_ufp_u_state_name[state]);
+		DP_DBG("%s\n", dp_ufp_u_state_name[state]);
 	else
-		DPM_DBG("dp_ufp_u_stop\n");
+		DP_DBG("dp_ufp_u_stop\n");
 }
 
 bool dp_ufp_u_request_enter_mode(
@@ -919,9 +916,9 @@ bool dp_ufp_u_request_exit_mode(
 	return false;
 }
 
-static inline bool dp_ufp_u_update_dp_connected(struct pd_port *pd_port)
+static inline void dp_ufp_u_update_dp_connected(struct pd_port *pd_port)
 {
-	bool valid_connected = false;
+	bool __maybe_unused valid_connected = false;
 	uint32_t dp_connected, dp_local_connected;
 	struct dp_data *dp_data = pd_get_dp_data(pd_port);
 
@@ -944,48 +941,42 @@ static inline bool dp_ufp_u_update_dp_connected(struct pd_port *pd_port)
 		break;
 	}
 
-	return valid_connected;
+	DP_DBG("dp_connected: 0x%x\n", dp_connected);
+	DP_DBG("dp_local_connected: 0x%x\n", dp_local_connected);
+	DP_DBG("valid_connected: %d\n", valid_connected);
 }
 
 static inline int dp_ufp_u_request_dp_status(struct pd_port *pd_port)
 {
-	bool ack;
 	struct dp_data *dp_data = pd_get_dp_data(pd_port);
-	uint32_t *ptr;
+	uint32_t *payload = pd_get_msg_vdm_data_payload(pd_port);
 
-	ptr = pd_get_msg_vdm_data_payload(pd_port);
-	if (!ptr)
+	if (!payload)
 		dp_data->remote_status = 0;
 	else
-		dp_data->remote_status = ptr[0];
+		dp_data->remote_status = payload[0];
 
 	switch (dp_data->ufp_u_state) {
 	case DP_UFP_U_WAIT:
-		ack = dp_ufp_u_update_dp_connected(pd_port);
+		dp_ufp_u_update_dp_connected(pd_port);
 		break;
 
 	case DP_UFP_U_STARTUP:
 	case DP_UFP_U_OPERATION:
-		ack = true;
 		tcpci_dp_status_update(
 			pd_port->tcpc, dp_data->remote_status);
 		break;
 
 	default:
-		ack = false;
 		break;
 	}
 
-	if (ack) {
-		dp_data->local_status |= DPSTS_DP_ENABLED;
-		if (pd_port->dpm_caps & DPM_CAP_DP_PREFER_MF)
-			dp_data->local_status |= DPSTS_DP_MF_PREF;
+	dp_data->local_status |= DPSTS_DP_ENABLED;
+	if (pd_port->dpm_caps & DPM_CAP_DP_PREFER_MF)
+		dp_data->local_status |= DPSTS_DP_MF_PREF;
 
-		return pd_reply_svdm_request(pd_port,
-			CMDT_RSP_ACK, 1, &dp_data->local_status);
-	} else {
-		return dpm_vdm_reply_svdm_nak(pd_port);
-	}
+	return pd_reply_svdm_request(pd_port,
+		CMDT_RSP_ACK, 1, &dp_data->local_status);
 }
 
 static bool dp_ufp_u_is_valid_dp_config(struct pd_port *pd_port,
@@ -1039,16 +1030,15 @@ static inline void dp_ufp_u_auto_attention(struct pd_port *pd_port)
 static inline int dp_ufp_u_request_dp_config(struct pd_port *pd_port)
 {
 	bool ack = false;
-	uint32_t dp_config, *ptr;
+	uint32_t dp_config, *payload = pd_get_msg_vdm_data_payload(pd_port);
 	struct dp_data *dp_data = pd_get_dp_data(pd_port);
 	struct tcpc_device __maybe_unused *tcpc = pd_port->tcpc;
 
-	ptr = pd_get_msg_vdm_data_payload(pd_port);
-	if (!ptr)
+	if (!payload)
 		dp_config = 0;
 	else
-		dp_config = ptr[0];
-	DPM_DBG("dp_config: 0x%x\n", dp_config);
+		dp_config = payload[0];
+	DP_DBG("dp_config: 0x%x\n", dp_config);
 
 	switch (dp_data->ufp_u_state) {
 	case DP_UFP_U_STARTUP:
@@ -1078,7 +1068,7 @@ static inline void dp_ufp_u_send_dp_attention(struct pd_port *pd_port)
 	case DP_UFP_U_OPERATION:
 		svid_data = dpm_get_svdm_svid_data(
 				pd_port, USB_SID_DISPLAYPORT);
-		PD_BUG_ON(svid_data == NULL);
+		PD_WARN_ON(svid_data == NULL);
 
 		pd_send_vdm_dp_attention(pd_port, TCPC_TX_SOP,
 			svid_data->active_mode, dp_data->local_status);
@@ -1180,7 +1170,7 @@ bool dp_parse_svid_data(
 	const char *connection;
 	uint32_t ufp_d_pin_cap = 0, dfp_d_pin_cap = 0;
 	uint32_t ufp_d_pin = 0, dfp_d_pin = 0;
-	uint32_t sig = DP_SIG_HBR3, receptacle = 1, usb2 = 0;
+	uint32_t sig = DP_SIG_HBR3, receptacle = 0, usb2 = 0;
 	int i = 0;
 
 	np = of_find_node_by_name(
@@ -1271,12 +1261,12 @@ bool dp_parse_svid_data(
 		}
 	}
 	/* 2nd connection must not be BOTH */
-	PD_BUG_ON(pd_port->dp_second_connected == DPSTS_BOTH_CONNECTED);
+	PD_WARN_ON(pd_port->dp_second_connected == DPSTS_BOTH_CONNECTED);
 	/* UFP or DFP can't both be invalid */
-	PD_BUG_ON(ufp_d_pin_cap == 0 && dfp_d_pin_cap == 0);
+	PD_WARN_ON(ufp_d_pin_cap == 0 && dfp_d_pin_cap == 0);
 	if (pd_port->dp_first_connected == DPSTS_BOTH_CONNECTED) {
-		PD_BUG_ON(ufp_d_pin_cap == 0);
-		PD_BUG_ON(dfp_d_pin_cap == 0);
+		PD_WARN_ON(ufp_d_pin_cap == 0);
+		PD_WARN_ON(dfp_d_pin_cap == 0);
 	}
 
 	return true;

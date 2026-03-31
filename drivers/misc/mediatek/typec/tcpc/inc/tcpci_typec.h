@@ -40,11 +40,14 @@ extern int tcpc_typec_enable(struct tcpc_device *tcpc);
 
 extern int tcpc_typec_change_role(
 	struct tcpc_device *tcpc, uint8_t typec_role, bool postpone);
+extern int tcpc_typec_suspend(struct tcpc_device *tcpc);
+extern void tcpc_typec_resume(struct tcpc_device *tcpc);
 
 #if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
 extern int tcpc_typec_handle_pe_pr_swap(struct tcpc_device *tcpc);
 #endif /* CONFIG_USB_POWER_DELIVERY */
 
+extern const char *const typec_role_name[];
 #if CONFIG_TYPEC_CAP_ROLE_SWAP
 extern int tcpc_typec_swap_role(struct tcpc_device *tcpc);
 #endif /* CONFIG_TYPEC_CAP_ROLE_SWAP */
@@ -55,14 +58,11 @@ extern int tcpc_typec_handle_wd(struct tcpc_device **tcpcs, size_t nr, bool wd);
 
 extern int tcpc_typec_handle_fod(struct tcpc_device *tcpc,
 					enum tcpc_fod_status);
-extern int tcpc_typec_handle_otp(struct tcpc_device *tcpc, bool otp);
-
 #if CONFIG_CABLE_TYPE_DETECTION
 extern int tcpc_typec_handle_ctd(struct tcpc_device *tcpc,
 				 enum tcpc_cable_type cable_type);
 #endif /* CONFIG_CABLE_TYPEC_DETECTION */
-
-extern int tcpc_typec_handle_cc_hi(struct tcpc_device *tcpc, int cc_hi);
+extern int tcpc_typec_handle_otp(struct tcpc_device *tcpc, bool otp);
 
 #define typec_get_cc1()		\
 	tcpc->typec_remote_cc[0]
@@ -70,6 +70,8 @@ extern int tcpc_typec_handle_cc_hi(struct tcpc_device *tcpc, int cc_hi);
 	tcpc->typec_remote_cc[1]
 #define typec_get_cc_res()	\
 	(tcpc->typec_polarity ? typec_get_cc2() : typec_get_cc1())
+#define typec_get_cc_sum()	\
+	(tcpc->typec_remote_cc[0] + tcpc->typec_remote_cc[1])
 
 enum TYPEC_CONNECTION_STATE {
 	typec_disabled = 0,
@@ -98,9 +100,7 @@ enum TYPEC_CONNECTION_STATE {
 
 	typec_trywait_snk,
 	typec_trywait_snk_pe,
-#endif
-
-#if CONFIG_TYPEC_CAP_TRY_SINK
+#endif	/* CONFIG_TYPEC_CAP_TRY_SOURCE */
 
 	/* Require : Assert Rd
 	 * Wait for tDRPTry and only then begin monitoring CC.
@@ -116,8 +116,6 @@ enum TYPEC_CONNECTION_STATE {
 	 */
 
 	typec_trywait_src,
-	typec_trywait_src_pe,
-#endif	/* CONFIG_TYPEC_CAP_TRY_SINK */
 
 	typec_audioaccessory,
 #if CONFIG_TYPEC_CAP_DBGACC
@@ -128,9 +126,7 @@ enum TYPEC_CONNECTION_STATE {
 	typec_attached_dbgacc_snk,
 #endif	/* CONFIG_TYPEC_CAP_DBGACC_SNK */
 
-#if CONFIG_TYPEC_CAP_CUSTOM_SRC
 	typec_attached_custom_src,
-#endif	/* CONFIG_TYPEC_CAP_CUSTOM_SRC */
 
 #if CONFIG_TYPEC_CAP_NORP_SRC
 	typec_attached_norp_src,
