@@ -81,4 +81,3 @@ config MTK_UFS_DEBUG_BUILD
 	  Select this if you want to enable above facilities.
 
 	  If unsure, say N.
-

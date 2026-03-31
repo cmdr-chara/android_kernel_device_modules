@@ -9,6 +9,7 @@
 #if IS_ENABLED(CONFIG_RPMB)
 
 #include <linux/rpmb.h>
+#include <ufs/ufshcd.h>
 
 void ufs_mtk_rpmb_init(struct ufs_hba *hba);
 struct rpmb_dev *ufs_mtk_rpmb_get_raw_dev(void);

@@ -27,9 +27,10 @@
 #include <scsi/scsi_proto.h>
 #include <scsi/scsi_dbg.h>
 #include <ufs/ufs_quirks.h>
-#include <ufs/ufshcd.h>
 #include <ufs/unipro.h>
 
+
+#include <ufs/ufshcd.h>
 #include "ufshcd-crypto.h"
 #include "ufshcd-pltfrm.h"
 #include "ufshcd-priv.h"
@@ -43,12 +44,6 @@
 #include "ufs-mediatek-sip.h"
 #include "ufs-mediatek-sysfs.h"
 #include "ufs-mediatek.h"
-
-
-#if IS_ENABLED(CONFIG_MTK_UFS_DEBUG_BUILD)
-#include <clk-mtk.h>
-static struct ufs_hba *ufshba;
-#endif
 
 /* Power Throttling */
 #if IS_ENABLED(CONFIG_MTK_LOW_BATTERY_POWER_THROTTLING)
@@ -1148,43 +1143,6 @@ static u32 ufs_mtk_get_ufs_hci_version(struct ufs_hba *hba)
 	return hba->ufs_version;
 }
 
-#if IS_ENABLED(CONFIG_MTK_UFS_DEBUG_BUILD)
-
-static int ufs_mtk_clk_notify_handler(struct notifier_block *nb,
-	unsigned long flags, void *data)
-{
-	struct ufs_hba *hba = ufshba;
-	struct clk_event_data *clkd;
-
-	if (!hba) {
-		WARN_ON_ONCE(1);
-		return NOTIFY_OK;
-	}
-
-	if (!data) {
-		WARN_ON_ONCE(1);
-		return NOTIFY_OK;
-	}
-
-	clkd = (struct clk_event_data *)data;
-
-	switch (clkd->event_type) {
-	case CLK_EVT_CLK_TRACE:
-		if (clkd->id == 0) { /* turning off clock */
-			if (strncmp("ufs", clkd->name, 3) == 0) {  /* ufs clocks */
-				if (hba->clk_gating.state == CLKS_ON &&
-					!hba->clk_gating.is_suspended) { /* should be ungated */
-					/* someone still need clocks */
-					ufs_mtk_dbg_dump(10);
-					BUG_ON(1);
-				}
-			}
-		}
-	break;
-	}
-	return NOTIFY_OK;
-}
-#endif
 /**
  * ufs_mtk_init_clocks - Init mtk driver private clocks
  *
@@ -1200,9 +1158,6 @@ static int ufs_mtk_init_clocks(struct ufs_hba *hba)
 	struct regulator *reg;
 	u32 volt;
 
-#if IS_ENABLED(CONFIG_MTK_UFS_DEBUG_BUILD)
-	int ret;
-#endif
 	/*
 	 * Find private clocks and store in struct ufs_mtk_clk.
 	 * Remove "ufs_sel_min_src" and "ufs_sel_min_src" from list to avoid
@@ -1282,17 +1237,6 @@ static int ufs_mtk_init_clocks(struct ufs_hba *hba)
 			goto out;
 		}
 	}
-
-#if IS_ENABLED(CONFIG_MTK_UFS_DEBUG_BUILD)
-	/* Setup clk callback */
-	ufshba = hba;
-	host->clk_notifier.notifier_call = ufs_mtk_clk_notify_handler;
-	ret = register_mtk_clk_notifier(&host->clk_notifier);
-	if (ret)
-		dev_err(hba->dev, "register clk_notifier failed");
-#endif
-
-
 out:
 	return 0;
 }
@@ -2611,6 +2555,8 @@ static int ufs_mtk_apply_dev_quirks(struct ufs_hba *hba)
 			STR_PRFX_EQUAL("MT001TAYAX8U40", dev_info->model))) {
 			ufshcd_dme_set(hba, UIC_ARG_MIB(PA_TACTIVATE), 8);
 		}
+	} else if ((mid == UFS_VENDOR_TOSHIBA) || (mid == UFS_VENDOR_SKHYNIX)) {
+		ufshcd_dme_set(hba, UIC_ARG_MIB(PA_TACTIVATE), 8);
 	}
 
 	/*

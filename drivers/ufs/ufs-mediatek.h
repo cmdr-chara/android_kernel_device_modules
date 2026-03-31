@@ -13,8 +13,8 @@
 #include <linux/cdev.h>
 #include <ufs/ufs.h>
 #include <ufs/ufshci.h>
-#include <ufs/ufshcd.h>
 #include "ufs-mediatek-rpmb.h"
+#include <ufs/ufshcd.h>
 
 /*
  * MCQ define and struct
@@ -258,11 +258,6 @@ struct ufs_mtk_host {
 #ifdef CONFIG_PM_SLEEP
 	struct delayed_work rq_dwork;
 	struct workqueue_struct *rq_workq;
-#endif
-
-#ifdef CONFIG_MTK_UFS_DEBUG_BUILD
-	/* clk debug */
-	struct notifier_block clk_notifier;
 #endif
 	struct device *phy_dev;
 
