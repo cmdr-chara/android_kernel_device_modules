@@ -1308,13 +1308,13 @@ static void cmdq_task_exec_done(struct cmdq_task *task, s32 err)
 #if IS_ENABLED(CONFIG_MTK_CMDQ_MBOX_EXT)
 	task->pkt->rec_irq = sched_clock();
 #endif
+	list_del_init(&task->list_entry);
 	cmdq_trace_begin("%s hwid:%d thrd:%d pkt:%p err:%d submit:%llu rec_irq:%llu hw_time:%u.%06lu",
 		__func__, task->cmdq->hwid, task->thread->idx , task->pkt, err,
 		task->exec_time, task->pkt->rec_irq, hw_time, hw_time_rem);
 	cmdq_task_callback(task->pkt, err);
 	cmdq_log("pkt:0x%p done err:%d", task->pkt, err);
 	task->end_time = sched_clock();
-	list_del_init(&task->list_entry);
 	cmdq_trace_end("%s pkt:%p", __func__, task->pkt);
 }
 
