@@ -330,7 +330,8 @@ static int mtk_vcodec_enc_probe(struct platform_device *pdev)
 	struct mtk_vcodec_dev *dev;
 	struct video_device *vfd_enc;
 	struct resource *res;
-	int i = 0, reg_index = 0, ret, slb_cpu_used_pref;
+	int i = 0, reg_index = 0, ret;
+	int slb_used_extra_size, slb_cpu_used_pref;
 	int port_num[MTK_VENC_HW_NUM] = {0};
 	const char *name = NULL;
 	int port_args_num = 0, port_data_len = 0, total_port_num = 0;
@@ -476,6 +477,13 @@ static int mtk_vcodec_enc_probe(struct platform_device *pdev)
 
 	dev->enc_slb_cpu_used_perf = slb_cpu_used_pref;
 	pr_info("after get venc-slb-cpu-used-perf %d\n", slb_cpu_used_pref);
+
+
+	ret = of_property_read_u32(pdev->dev.of_node, "venc-slb-used-extra-size", &slb_used_extra_size);
+	if (ret != 0)
+		dev_info(&pdev->dev, "Failed to get venc-slb-used-extra-size!");
+	dev->enc_slb_used_extra_size_threshold = slb_used_extra_size;
+	pr_info("after get venc-slb-used-extra-size %d\n", slb_used_extra_size);
 
 	mutex_init(&dev->ctx_mutex);
 	mutex_init(&dev->dev_mutex);

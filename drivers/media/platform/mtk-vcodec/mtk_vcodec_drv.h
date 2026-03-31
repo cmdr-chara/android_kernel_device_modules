@@ -180,7 +180,7 @@ enum mtk_encode_param {
 	MTK_ENCODE_PARAM_SLICE_CNT = (1 << 27),
 	MTK_ENCODE_PARAM_VISUAL_QUALITY = (1 << 28),
 	MTK_ENCODE_PARAM_INIT_QP = (1 << 29),
-	MTK_ENCODE_PARAM_FRAMEQP_RANGE = (1 << 30)
+	MTK_ENCODE_PARAM_FRAMEQP_RANGE = (1 << 30),
 };
 
 /*
@@ -359,6 +359,7 @@ struct mtk_enc_params {
 	unsigned int    slbc_ready;
 	unsigned int    slbc_encode_performance;
 	unsigned int    slbc_cpu_used_performance;
+	unsigned int    slbc_need_used_extra_size;
 	unsigned int    i_qp;
 	unsigned int    p_qp;
 	unsigned int    b_qp;
@@ -397,6 +398,7 @@ struct mtk_enc_params {
 	struct mtk_venc_visual_quality visual_quality;
 	struct mtk_venc_init_qp init_qp;
 	struct mtk_venc_frame_qp_range frame_qp_range;
+	struct mtk_venc_nal_length nal_length;
 };
 
 /*
@@ -490,6 +492,7 @@ struct venc_enc_param {
 	struct mtk_venc_visual_quality *visual_quality;
 	struct mtk_venc_init_qp *init_qp;
 	struct mtk_venc_frame_qp_range *frame_qp_range;
+	struct mtk_venc_nal_length *nal_length;
 };
 
 /*
@@ -921,6 +924,8 @@ struct mtk_vcodec_dev {
 
 	//slb cpu used more performance than venc when throughput is lower than value
 	int enc_slb_cpu_used_perf;
+	//specific scenario need extra slb size
+	int enc_slb_used_extra_size_threshold;
 
 	bool smmu_enabled;
 	unsigned int vp_mode_used_cnt;

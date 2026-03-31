@@ -235,6 +235,9 @@ wait_ack:
 		if (ret == 0) {
 			mtk_vcodec_err(inst, "wait vcp ipi %X ack time out! %d %d",
 				msg_ap->msg_id, ret, inst->vcu_inst.failure);
+#if IS_ENABLED(CONFIG_MTK_TINYSYS_VCP_SUPPORT)
+			dump_vcp_irq_status();
+#endif
 			goto ipi_err_wait_and_unlock;
 		} else if (-ERESTARTSYS == ret) {
 			mtk_vcodec_err(inst, "wait vcp ipi %X ack ret %d RESTARTSYS retry! (%d)",
@@ -1848,6 +1851,12 @@ static int venc_vcp_set_param(unsigned long handle,
 			memcpy(&inst->vsi->config.frame_qp_range,
 				enc_prm->frame_qp_range,
 				sizeof(struct mtk_venc_frame_qp_range));
+		}
+
+		if (enc_prm->nal_length) {
+			memcpy(&inst->vsi->config.nal_length,
+				enc_prm->nal_length,
+				sizeof(struct mtk_venc_nal_length));
 		}
 
 		if (enc_prm->color_desc) {

@@ -26,6 +26,7 @@
 #include <media/videobuf2-dma-contig.h>
 #include <soc/mediatek/mmdvfs_v3.h>
 #include <soc/mediatek/smi.h>
+#include <linux/delay.h>
 
 #include "mtk-interconnect.h"
 #include "mtk_jpeg_enc_hw.h"
@@ -1309,7 +1310,13 @@ static int mtk_jpeg_queue_init(void *priv, struct vb2_queue *src_vq,
 static void mtk_jpeg_clk_on(struct mtk_jpeg_dev *jpeg)
 {
 	int ret, i;
+	struct slbc_data test_d;
 
+	test_d.uid = UID_MM_VENC;
+	test_d.type = TP_BUFFER;
+	slbc_request(&test_d);
+	pr_info("%s %d slbc request\n", __func__, __LINE__);
+	udelay(1000);
 	for (i = 0; i < jpeg->variant->num_clks; i++) {
 		ret = pm_runtime_resume_and_get(jpeg->larb[i]);
 		if (ret)
@@ -1326,11 +1333,21 @@ static void mtk_jpeg_clk_on(struct mtk_jpeg_dev *jpeg)
 static void mtk_jpeg_clk_off(struct mtk_jpeg_dev *jpeg)
 {
 	int i;
+	struct slbc_data test_d;
+
 	clk_bulk_disable_unprepare(jpeg->variant->num_clks,
 				   jpeg->variant->clks);
 
 	for (i = 0; i < jpeg->variant->num_clks; i++)
 		pm_runtime_put_sync(jpeg->larb[i]);
+
+	udelay(1000);
+	pr_info("%s %d slbc release before\n", __func__, __LINE__);
+	test_d.uid = UID_MM_VENC;
+	test_d.type = TP_BUFFER;
+	slbc_release(&test_d);
+	pr_info("%s %d slbc release\n", __func__, __LINE__);
+
 }
 
 static irqreturn_t mtk_jpeg_enc_done(struct mtk_jpeg_dev *jpeg)
