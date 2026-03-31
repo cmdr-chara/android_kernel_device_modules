@@ -1331,6 +1331,21 @@ s32 mtk_smi_dbg_cg_status(void)
 }
 EXPORT_SYMBOL_GPL(mtk_smi_dbg_cg_status);
 
+static void mtk_smi_dbg_flow_ctrl_dump(void)
+{
+	struct mtk_smi_dbg	*smi = gsmi;
+	struct mtk_smi_dbg_node	node;
+	s32			i;
+
+	//check COMM status
+	for (i = 0; i < ARRAY_SIZE(smi->comm); i++) {
+		node = smi->comm[i];
+		if (!node.dev || !node.va)
+			continue;
+		mtk_smi_dump_last_flow_ctrl_dbg(node.dev);
+	}
+}
+
 int mtk_smi_set_disp_ops(const struct smi_disp_ops *ops)
 {
 	struct mtk_smi_dbg	*smi = gsmi;
@@ -1473,6 +1488,18 @@ static int __init mtk_smi_dbg_init(void)
 
 	return platform_register_drivers(smi_dbg_drivers, ARRAY_SIZE(smi_dbg_drivers));
 }
+
+void mtk_smi_set_common_clamp_and_lock(const u32 comm_id, bool on)
+{
+	struct mtk_smi_dbg	*smi = gsmi;
+
+	if (!smi->comm[comm_id].dev)
+		pr_notice("%s: can not find comm%d\n",
+			__func__, comm_id);
+	else
+		mtk_smi_common_clamp_and_lock(smi->comm[comm_id].dev, on);
+}
+EXPORT_SYMBOL_GPL(mtk_smi_set_common_clamp_and_lock);
 
 int smi_ut_dump_get(char *buf, const struct kernel_param *kp)
 {
@@ -1848,6 +1875,7 @@ s32 mtk_smi_dbg_hang_detect(char *user)
 	}
 
 	mtk_smi_dump_last_pd(user);
+	mtk_smi_dbg_flow_ctrl_dump();
 
 	if (!smi_enter_met) {
 		smi_hang_detect_bw_monitor(false);
