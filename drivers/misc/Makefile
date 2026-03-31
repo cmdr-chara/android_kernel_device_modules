@@ -4,3 +4,7 @@
 #
 
 obj-y				+= mediatek/
+
+obj-y				+= hqsysfs/
+
+obj-y				+= xiaomi/
