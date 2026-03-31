@@ -18,7 +18,8 @@
 #include <linux/slab.h>
 #include <linux/list.h>
 #include <linux/suspend.h>
-
+#include <linux/notifier.h>
+#include <linux/delay.h>
 #include "ready.h"
 #include "sensor_comm.h"
 #include "sensor_list.h"
@@ -65,6 +66,11 @@ struct transceiver_device {
 	atomic_t normal_wp_dropped;
 	atomic_t super_wp_dropped;
 	struct task_struct *task;
+
+	struct notifier_block charge_nb;
+	int charge_level;
+	struct work_struct charge_level_work;
+	struct workqueue_struct *charge_level_workqueue;
 };
 
 static struct transceiver_device transceiver_dev;
@@ -73,6 +79,31 @@ DEFINE_SPINLOCK(transceiver_fifo_lock);
 DECLARE_COMPLETION(transceiver_done);
 DEFINE_KFIFO(transceiver_fifo, uint32_t, 32);
 DEFINE_KFIFO(transceiver_super_fifo, uint32_t, 32);
+
+extern int charge_current_register_notifier(struct notifier_block *nb);
+extern int charge_current_unregister_notifier(struct notifier_block *nb);
+
+static int charge_current_notifier_callback(struct notifier_block *self,
+				unsigned long event, void *data)
+{
+	int err = 0;
+	struct transceiver_device *dev = &transceiver_dev;
+	dev->charge_level = (int)event;
+	pr_info("sensorhub %s: charge_current = %d\n", __func__, dev->charge_level);
+	err = queue_work(dev->charge_level_workqueue, &dev->charge_level_work);
+	if (err < 0) {
+		pr_err("%s is failed!!\n", __func__);
+		return -1;
+	}
+	return 0;
+}
+
+static int sensorhub_register_charge_current(struct transceiver_device *dev)
+{
+	memset(&dev->charge_nb, 0, sizeof(dev->charge_nb));
+	dev->charge_nb.notifier_call = charge_current_notifier_callback;
+	return charge_current_register_notifier(&dev->charge_nb);
+}
 
 static void transceiver_notify_func(struct sensor_comm_notify *n,
 		void *private_data)
@@ -150,7 +181,8 @@ static bool transceiver_wakeup_check(uint8_t action, uint8_t sensor_type)
 			sensor_type == SENSOR_TYPE_MOTION_DETECT ||
 			sensor_type == SENSOR_TYPE_IN_POCKET ||
 			sensor_type == SENSOR_TYPE_ANSWER_CALL ||
-			sensor_type == SENSOR_TYPE_FLAT))
+			sensor_type == SENSOR_TYPE_FLAT  ||
+			sensor_type == SENSOR_TYPE_NONUI))
 		return true;
 
 	return false;
@@ -528,6 +560,40 @@ static int transceiver_comm_with(int sensor_type, int cmd,
 	return ret;
 }
 
+#define GPIO_PULLUP_PHY_BASE 0x11D400B0
+#define GPIO_PULLUP_BIT 19
+
+#define R_LEN 0x4
+
+static void __iomem *gpio_remap;
+unsigned int gpio_val;
+
+static bool is_remap = false;
+
+void i2c_pullup_enable(void) {
+	if (is_remap == false) {
+		gpio_remap = ioremap(GPIO_PULLUP_PHY_BASE, R_LEN);
+		is_remap = true;
+	}
+
+	gpio_val = readl(gpio_remap);
+	gpio_val |= ((0x3)<<GPIO_PULLUP_BIT);
+	writel(gpio_val, gpio_remap);
+	pr_info("En_after: gpio_val:0x %x\n",gpio_val);
+}
+
+void i2c_pullup_disable(void) {
+	if (is_remap == false) {
+		gpio_remap = ioremap(GPIO_PULLUP_PHY_BASE, R_LEN);
+		is_remap = true;
+	}
+
+	gpio_val = readl(gpio_remap);
+	gpio_val &= (~((0x3)<<GPIO_PULLUP_BIT));
+	writel(gpio_val, gpio_remap);
+	pr_info("Dis_after: gpio_val:0x %x\n",gpio_val);
+}
+
 static int transceiver_enable(struct hf_device *hf_dev,
 		int sensor_type, int en)
 {
@@ -542,9 +608,13 @@ static int transceiver_enable(struct hf_device *hf_dev,
 		ret = transceiver_comm_with(sensor_type,
 			SENS_COMM_CTRL_ENABLE_CMD,
 			&state->batch, sizeof(state->batch));
-		if (ret >= 0)
-			state->enable = true;
-		else
+		if (ret >= 0){
+ 			state->enable = true;
+			if (sensor_type == SENSOR_TYPE_OIS) {
+				i2c_pullup_enable();
+				mdelay(2);
+			}
+		} else
 			sensor_deregister_freq(sensor_type);
 	} else {
 		ret = transceiver_comm_with(sensor_type,
@@ -558,6 +628,10 @@ static int transceiver_enable(struct hf_device *hf_dev,
 		 * disable no need send flush, due to sensorhub architecture
 		 * can send flush when sensor disabled.
 		 */
+		if (sensor_type == SENSOR_TYPE_OIS) {
+			mdelay(2);
+			i2c_pullup_disable();
+		}
 	}
 	mutex_unlock(&dev->enable_lock);
 	return ret;
@@ -780,9 +854,17 @@ static void transceiver_sensor_bootup(struct transceiver_device *dev)
 static int transceiver_ready_notifier_call(struct notifier_block *this,
 		unsigned long event, void *ptr)
 {
-	if (event)
+	if (event) {
 		transceiver_sensor_bootup(&transceiver_dev);
-
+		if (transceiver_dev.state[SENSOR_TYPE_OIS].enable){
+			i2c_pullup_enable();
+			mdelay(2);
+        }
+		else {
+			mdelay(2);
+			i2c_pullup_disable();
+        }
+	}
 	return NOTIFY_DONE;
 }
 
@@ -845,6 +927,24 @@ static int transceiver_shm_super_cfg(struct share_mem_config *cfg,
 	dev->shm_super_reader.item_size = sizeof(struct share_mem_super_data);
 	dev->shm_super_reader.buffer_full_detect = false;
 	return share_mem_init(&dev->shm_super_reader, cfg);
+}
+
+static int transceiver_charge_current(struct hf_device *hf_dev,int sensor_type, void *data, uint8_t length)
+{
+	return transceiver_comm_with(sensor_type,
+		SENS_COMM_CTRL_CHARGE_CURRENT_CMD, data, length);
+}
+
+static void charge_current_work_func(struct work_struct *work)
+{
+	struct transceiver_device *dev = &transceiver_dev;
+	int ret = 0;
+	pr_info("charge_current_work_func_run\n");
+	ret = transceiver_charge_current(&dev->hf_dev,2,&dev->charge_level,sizeof(int32_t));
+	if (ret < 0) {
+		pr_err("%s is failed!!\n", __func__);
+		return;
+	}
 }
 
 static int __init transceiver_init(void)
@@ -970,6 +1070,13 @@ static int __init transceiver_init(void)
 		goto out_ready;
 	}
 
+	ret = sensorhub_register_charge_current(dev);
+	if (ret) {
+		pr_err("sensorhub_register_charge_current fail = %d\n", ret);
+	} else {
+		dev->charge_level_workqueue = create_singlethread_workqueue("sensorhub_charge_current_sensor");
+		INIT_WORK(&dev->charge_level_work, charge_current_work_func);
+    }
 	return 0;
 
 out_ready:

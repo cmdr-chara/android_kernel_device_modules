@@ -86,7 +86,9 @@ struct mtk_nanohub_device {
 
 	int32_t acc_config_data[6];
 	int32_t gyro_config_data[12];
-	int32_t mag_config_data[9];
+  /* P16 add for NFC distinction start*/
+	int32_t mag_config_data[10];
+  /* P16 add for NFC distinction end*/
 	int32_t light_config_data[1];
 	int32_t proximity_config_data[2];
 	int32_t pressure_config_data[2];
