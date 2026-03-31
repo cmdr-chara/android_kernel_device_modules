@@ -73,6 +73,10 @@
 
 #define CCU_DEV_NAME            "ccu"
 
+#ifndef MAX_FREQ_STEP
+#define MAX_FREQ_STEP 12
+#endif
+
 #define CCU_CLK_PWR_NUM 4
 /* [0]: CCU_CLK_TOP_MUX, [1]: MDP_PWR, [2]: CAM_PWR, [3]: CCU_CLK_CAM_CCU */
 struct clk *ccu_clk_pwr_ctrl[CCU_CLK_PWR_NUM];
@@ -766,7 +770,13 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 		uint32_t *outdata = NULL;
 
 		indata = kzalloc(CCU_IPC_IBUF_CAPACITY, GFP_KERNEL);
+		if (!indata)
+			return -ENOMEM;
 		outdata = kzalloc(CCU_IPC_OBUF_CAPACITY, GFP_KERNEL);
+		if (!outdata) {
+			kfree(indata);
+			return -ENOMEM;
+		}
 		ret = copy_from_user(&msg,
 			(void *)arg, sizeof(struct ccu_control_info));
 		if (ret != 0) {
@@ -777,7 +787,14 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 			kfree(outdata);
 			break;
 		}
-
+		if (msg.inDataSize > CCU_IPC_IBUF_CAPACITY) {
+			LOG_ERR(
+			"CCU_IOCTL_IPC_SEND_CMD copy_from_user 2 oversize\n");
+			ret = -EINVAL;
+			kfree(indata);
+			kfree(outdata);
+			break;
+		}
 		ret = copy_from_user(indata,
 			(void *)msg.inDataPtr, msg.inDataSize);
 		if (ret != 0) {
@@ -792,7 +809,14 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 		msg.feature_type,
 		(enum IMGSENSOR_SENSOR_IDX)msg.sensor_idx,
 		msg.msg_id, indata, msg.inDataSize, outdata, msg.outDataSize);
-
+		if (msg.outDataSize > CCU_IPC_OBUF_CAPACITY) {
+			LOG_ERR(
+			"CCU_IOCTL_IPC_SEND_CMD copy_to_user oversize\n");
+			ret = -EINVAL;
+			kfree(indata);
+			kfree(outdata);
+			break;
+		}
 		ret = copy_to_user((void *)msg.outDataPtr, outdata, msg.outDataSize);
 		kfree(indata);
 		kfree(outdata);
@@ -925,6 +949,11 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 			(void *)arg, sizeof(uint32_t));
 
 		LOG_DBG_MUST("request freq level: %d\n", freq_level);
+		if (freq_level >= MAX_FREQ_STEP) {
+			ret = -EINVAL;
+			break;
+		}
+
 #ifdef CONFIG_MTK_QOS_SUPPORT_ENABLE
 		if (freq_level == CCU_REQ_CAM_FREQ_NONE)
 			pm_qos_update_request(&_ccu_qos_request, 0);
@@ -1128,6 +1157,9 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 		int ret = 0;
 		dma_addr_t dma_addr;
 		struct dma_buf *buf;
+
+		if (iova_buf_count >= CCU_IOVA_BUFFER_MAX)
+			return -EFAULT;
 
 		ret = copy_from_user(&va,
 			(void *)arg, sizeof(int));
