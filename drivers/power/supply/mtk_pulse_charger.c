@@ -58,6 +58,7 @@
 #include <linux/reboot.h>
 
 #include "mtk_charger.h"
+#include "mtk_printk.h"
 
 #define MAX_TOPOFF_CHARGING_TIME (3 * 60 * 60) /* 3 hours */
 

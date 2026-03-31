@@ -61,6 +61,7 @@
 #include <linux/of_platform.h>
 
 #include "mtk_charger.h"
+#include "mtk_printk.h"
 
 int get_uisoc(struct mtk_charger *info)
 {
@@ -72,7 +73,8 @@ int get_uisoc(struct mtk_charger *info)
 
 	if (bat_psy == NULL || IS_ERR(bat_psy)) {
 		chr_err("%s retry to get bat_psy\n", __func__);
-		bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		// bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		bat_psy = power_supply_get_by_name("battery");
 		info->bat_psy = bat_psy;
 	}
 
@@ -85,7 +87,7 @@ int get_uisoc(struct mtk_charger *info)
 		ret = prop.intval;
 	}
 
-	chr_debug("%s:%d\n", __func__,
+	chr_info("%s:%d\n", __func__,
 		ret);
 	return ret;
 }
@@ -100,7 +102,8 @@ int get_battery_voltage(struct mtk_charger *info)
 
 	if (bat_psy == NULL || IS_ERR(bat_psy)) {
 		chr_err("%s retry to get bat_psy\n", __func__);
-		bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		// bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		bat_psy = power_supply_get_by_name("battery");
 		info->bat_psy = bat_psy;
 	}
 
@@ -113,7 +116,7 @@ int get_battery_voltage(struct mtk_charger *info)
 		ret = prop.intval / 1000;
 	}
 
-	chr_debug("%s:%d\n", __func__,
+	chr_info("%s:%d\n", __func__,
 		ret);
 	return ret;
 }
@@ -129,7 +132,8 @@ int get_battery_temperature(struct mtk_charger *info)
 
 	if (bat_psy == NULL || IS_ERR(bat_psy)) {
 		chr_err("%s retry to get bat_psy\n", __func__);
-		bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		// bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		bat_psy = power_supply_get_by_name("battery");
 		info->bat_psy = bat_psy;
 	}
 
@@ -142,7 +146,7 @@ int get_battery_temperature(struct mtk_charger *info)
 		ret = prop.intval / 10;
 	}
 
-	chr_debug("%s:%d\n", __func__,
+	chr_info("%s:%d\n", __func__,
 		ret);
 	return ret;
 }
@@ -158,7 +162,8 @@ int get_battery_current(struct mtk_charger *info)
 
 	if (bat_psy == NULL || IS_ERR(bat_psy)) {
 		chr_err("%s retry to get bat_psy\n", __func__);
-		bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		// bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		bat_psy = power_supply_get_by_name("battery");
 		info->bat_psy = bat_psy;
 	}
 
@@ -171,7 +176,7 @@ int get_battery_current(struct mtk_charger *info)
 		ret = prop.intval / 1000;
 	}
 
-	chr_debug("%s:%d\n", __func__,
+	chr_info("%s:%d\n", __func__,
 		ret);
 	return ret;
 }
@@ -193,7 +198,7 @@ static int get_pmic_vbus(struct mtk_charger *info, int *vchr)
 	}
 	*vchr = prop.intval;
 
-	chr_debug("%s vbus:%d\n", __func__,
+	chr_info("%s vbus:%d\n", __func__,
 		prop.intval);
 	return ret;
 }
@@ -255,7 +260,8 @@ bool is_battery_exist(struct mtk_charger *info)
 
 	if (bat_psy == NULL || IS_ERR(bat_psy)) {
 		chr_err("%s retry to get bat_psy\n", __func__);
-		bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		//bat_psy = devm_power_supply_get_by_phandle(&info->pdev->dev, "gauge");
+		bat_psy = power_supply_get_by_name("battery");
 		info->bat_psy = bat_psy;
 	}
 
@@ -268,7 +274,7 @@ bool is_battery_exist(struct mtk_charger *info)
 		ret = prop.intval;
 	}
 
-	chr_debug("%s:%d\n", __func__,
+	chr_info("%s:%d\n", __func__,
 		ret);
 	return ret;
 }
@@ -297,7 +303,7 @@ bool is_charger_exist(struct mtk_charger *info)
 		ret = prop.intval;
 	}
 
-	chr_debug("%s:%d\n", __func__,
+	chr_info("%s:%d\n", __func__,
 		ret);
 	return ret;
 }
@@ -336,7 +342,7 @@ int get_charger_type(struct mtk_charger *info)
 			prop2.intval = POWER_SUPPLY_TYPE_UNKNOWN;
 	}
 
-	chr_debug("%s online:%d type:%d usb_type:%d\n", __func__,
+	chr_info("%s online:%d type:%d usb_type:%d\n", __func__,
 		prop.intval,
 		prop2.intval,
 		prop3.intval);
@@ -367,7 +373,7 @@ int get_usb_type(struct mtk_charger *info)
 		ret = power_supply_get_property(bc12_psy,
 			POWER_SUPPLY_PROP_USB_TYPE, &prop2);
 	}
-	chr_debug("%s online:%d usb_type:%d\n", __func__,
+	chr_info("%s online:%d usb_type:%d\n", __func__,
 		prop.intval,
 		prop2.intval);
 	return prop2.intval;
@@ -388,7 +394,7 @@ int get_charger_temperature(struct mtk_charger *info,
 	else
 		ret = (tchg_max + tchg_min) / 2;
 
-	chr_debug("%s:%d\n", __func__,
+	chr_info("%s:%d\n", __func__,
 		ret);
 	return ret;
 }
@@ -407,7 +413,7 @@ int get_charger_charging_current(struct mtk_charger *info,
 	else
 		ret = olduA;
 
-	chr_debug("%s:%d\n", __func__,
+	chr_info("%s:%d\n", __func__,
 		ret);
 	return ret;
 }
@@ -426,7 +432,7 @@ int get_charger_input_current(struct mtk_charger *info,
 	else
 		ret = olduA;
 
-	chr_debug("%s:%d\n", __func__,
+	chr_info("%s:%d\n", __func__,
 		ret);
 	return ret;
 }
@@ -445,7 +451,7 @@ int get_charger_zcv(struct mtk_charger *info,
 		chr_err("%s: get charger zcv failed: %d\n", __func__, ret);
 	else
 		ret = zcv;
-	chr_debug("%s:%d\n", __func__,
+	chr_info("%s:%d\n", __func__,
 		ret);
 	return ret;
 }

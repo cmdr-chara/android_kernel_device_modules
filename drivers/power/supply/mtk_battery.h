@@ -121,6 +121,13 @@ enum battery_property {
 	BAT_PROP_INIT_DONE,
 	BAT_PROP_FG_RESET,
 	BAT_PROP_LOG_LEVEL,
+	BAT_PROP_CHARGE_EOC,
+	BAT_PROP_AUTHENTIC,
+	BAT_PROP_NIGHT_CHARGING,
+	BAT_PROP_INPUT_SUSPEND,
+	BAT_PROP_SMART_BATT,
+	BAT_PROP_SHIPMODE,
+	BAT_PROP_SMART_CHG,
 };
 
 enum property_control_data {
@@ -167,6 +174,7 @@ struct battery_data {
 	/* Add for Battery Service */
 	int bat_batt_vol;
 	int bat_batt_temp;
+	int bat_current;
 };
 
 struct VersionControl {
@@ -362,6 +370,13 @@ enum charge_sel {
 	CHARGE_R2,
 	CHARGE_R3,
 	CHARGE_R4,
+};
+
+struct smart_chg {
+	bool en_ret;
+	bool use_fake_func_val;
+	int active_status;
+	int func_val;
 };
 
 struct fuelgauge_charger_struct {
@@ -667,7 +682,6 @@ struct fuel_gauge_custom_data {
 	/* log_level */
 	int daemon_log_level;
 	int record_log;
-
 };
 
 struct fgd_cmd_param_t_custom {
@@ -962,6 +976,8 @@ struct mtk_battery {
 	struct sock *mtk_battery_sk;
 
 	struct mtk_battery_algo algo;
+	struct mtk_charger *info;
+	struct charger_device *mtk_charger;
 
 	u_int fgd_pid;
 
@@ -987,6 +1003,7 @@ struct mtk_battery {
 	bool disableGM30;
 	bool ntc_disable_nafg;
 	bool cmd_disable_nafg;
+	bool shipmode_flag;
 
 	/*battery plug in out*/
 	int chr_type;
@@ -1039,6 +1056,8 @@ struct mtk_battery {
 	/* charge full interrupt */
 	struct timespec64 chr_full_handler_time;
 	bool b_EOC;
+
+	bool authenticate;
 
 	/* battery temperature interrupt */
 	int bat_tmp_int_gap;
@@ -1149,12 +1168,34 @@ struct mtk_battery {
 	int (*resume)(struct mtk_battery *gm);
 
 	int log_level;
+	int thermal_level;
+	int diff_fv_val;
+	bool night_charging;
+
 	/* low bat bound */
 	int bat_voltage_low_bound;
 	int low_tmp_bat_voltage_low_bound;
 
+	/*  smart chg array.Smart charge engine feature.
+		smart_chg[0] is the flag member for smart_chg.
+		smart_chg[0].en_ret == 0, means writing successful, otherwise failed.
+		smart_chg[0].active_status is the en_ret val of smart_chg[1 ~ SMART_CHG_FEATURE_MAX_NUM].
+		smart_chg[0].func_val are not used, reserved.
+		smart_chg[1 ~ SMART_CHG_FEATURE_MAX_NUM] represent bit1-bit15 func type.
+		smart_chg[1 ~ SMART_CHG_FEATURE_MAX_NUM].en_ret is the enable status that top layer set.
+		smart_chg[1 ~ SMART_CHG_FEATURE_MAX_NUM].active_status is the actual active status in kernel,
+			because sometime kernel may turn off the functype itself thouth top layer set the functype enable .
+		smart_chg[1 ~ SMART_CHG_FEATURE_MAX_NUM].func_val is the val that top layer set. */
+	//struct smart_chg smart_chg[SMART_CHG_FEATURE_MAX_NUM + 1];
+
 	int dynamic_shutdown_cond;
 	int bob_exist;
+
+	/* vsys bound*/
+	int disable_quick_shutdown;
+	int vsys_det_voltage1;
+	int vsys_det_voltage2;
+	int down_to_low_bat;
 };
 
 struct mtk_battery_sysfs_field_info {
@@ -1225,6 +1266,7 @@ extern int get_shutdown_cond_flag(struct mtk_battery *gm);
 extern void set_shutdown_cond_flag(struct mtk_battery *gm, int val);
 extern bool set_charge_power_sel(enum charge_sel select);
 extern int dump_pseudo100(int select);
+extern int fg_get_vsys(void);
 /*mtk_battery.c end */
 
 /* mtk_battery_algo.c */

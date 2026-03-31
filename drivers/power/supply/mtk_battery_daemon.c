@@ -3927,6 +3927,7 @@ static void mtk_battery_daemon_handler(struct mtk_battery *gm, void *nl_data,
 	{
 		int reset = gm->is_reset_aging_factor;
 
+		ret_msg->fgd_data_len += sizeof(reset);
 		memcpy(ret_msg->fgd_data, &reset,
 			sizeof(reset));
 

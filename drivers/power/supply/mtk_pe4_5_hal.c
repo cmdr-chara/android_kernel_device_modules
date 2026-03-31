@@ -62,6 +62,7 @@
 
 /* dependent on platform */
 #include "mtk_charger.h"
+#include "mtk_printk.h"
 
 struct pe45_hal {
 	struct charger_device *chg1_dev;
