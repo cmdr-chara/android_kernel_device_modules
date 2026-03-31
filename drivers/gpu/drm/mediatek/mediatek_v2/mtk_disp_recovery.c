@@ -32,7 +32,11 @@
 #include "mtk_drm_mmp.h"
 #include "mtk_drm_trace.h"
 #include "mtk_dsi.h"
-
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+#include "mi_disp/mi_disp_event.h"
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 #define ESD_TRY_CNT 5
 #define ESD_CHK_TRY_CNT 5
 #define ESD_CHECK_PERIOD 2000 /* ms */
@@ -445,7 +449,19 @@ done:
 	mtk_drm_trace_end();
 	return ret;
 }
-
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 start */
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+static atomic_t panel_dead;
+int get_panel_dead_flag(void) {
+	return atomic_read(&panel_dead);
+}
+EXPORT_SYMBOL(get_panel_dead_flag);
+void set_panel_dead_flag(int value) {
+	atomic_set(&panel_dead, value);
+}
+EXPORT_SYMBOL(set_panel_dead_flag);
+#endif
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 end */
 static int mtk_drm_esd_recover(struct drm_crtc *crtc)
 {
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
@@ -518,7 +534,11 @@ static int mtk_drm_esd_recover(struct drm_crtc *crtc)
 	mtk_ddp_comp_io_cmd(output_comp, NULL, CONNECTOR_PANEL_ENABLE, NULL);
 
 	CRTC_MMP_MARK(index, esd_recovery, 0, 4);
-
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 start */
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+	mtk_ddp_comp_io_cmd(output_comp, NULL, ESD_RESTORE_BACKLIGHT, NULL);
+#endif
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 end */
 	mtk_crtc_hw_block_ready(crtc);
 	if (mtk_crtc_is_frame_trigger_mode(crtc)) {
 		struct cmdq_pkt *cmdq_handle;
@@ -542,7 +562,13 @@ static int mtk_drm_esd_recover(struct drm_crtc *crtc)
 done:
 	CRTC_MMP_EVENT_END(index, esd_recovery, 0, ret);
 	mtk_drm_trace_end();
-
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+if (ESD_TYPE != 0) {
+	mi_disp_mievent_recovery(ESD_TYPE);
+	}
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 	return 0;
 }
 
@@ -555,6 +581,9 @@ int mtk_drm_esd_testing_process(struct mtk_drm_esd_ctx *esd_ctx, bool need_lock)
 		int i = 0;
 		int recovery_flg = 0;
 		unsigned int crtc_idx;
+#if IS_ENABLED(CONFIG_MIEV)
+		struct mi_event_info mi_event = {0};
+#endif
 
 		if (!esd_ctx) {
 			DDPPR_ERR("%s invalid ESD context, stop thread\n", __func__);
@@ -579,6 +608,7 @@ int mtk_drm_esd_testing_process(struct mtk_drm_esd_ctx *esd_ctx, bool need_lock)
 
 		private = crtc->dev->dev_private;
 		if (need_lock) {
+			DDP_COMMIT_LOCK(&private->commit.lock, __func__, __LINE__);
 			DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
 			CRTC_MMP_MARK(crtc_idx, esd_check, 0x10CF, 0);
 		}
@@ -592,6 +622,12 @@ int mtk_drm_esd_testing_process(struct mtk_drm_esd_ctx *esd_ctx, bool need_lock)
 
 			DDPPR_ERR("[ESD%u]esd check fail, will do esd recovery. try=%d\n",
 				crtc_idx, i);
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+			mi_event.event_type = MI_EVENT_PRI_PANEL_REG_ESD;
+			mi_disp_mievent_int(MI_DISP_PRIMARY, &mi_event);
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 			mtk_drm_esd_recover(crtc);
 			recovery_flg = 1;
 			mtk_drm_trace_end();
@@ -605,6 +641,7 @@ int mtk_drm_esd_testing_process(struct mtk_drm_esd_ctx *esd_ctx, bool need_lock)
 
 			if (need_lock) {
 				DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+				DDP_COMMIT_UNLOCK(&private->commit.lock, __func__, __LINE__);
 			}
 			return 0;
 		} else if (recovery_flg && ret == 0) {
@@ -615,6 +652,7 @@ int mtk_drm_esd_testing_process(struct mtk_drm_esd_ctx *esd_ctx, bool need_lock)
 
 		if (need_lock) {
 			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+			DDP_COMMIT_UNLOCK(&private->commit.lock, __func__, __LINE__);
 		}
 
 		return 0;

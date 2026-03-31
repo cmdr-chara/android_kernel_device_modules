@@ -44,8 +44,10 @@ void mml_mmp_init(void)
 	mml_mmp_events.wait_ready = mmprofile_register_event(mml, "wait_ready");
 	mml_mmp_events.throughput = mmprofile_register_event(mml, "throughput");
 	mml_mmp_events.bandwidth = mmprofile_register_event(mml, "bandwidth");
+	mml_mmp_events.both_set = mmprofile_register_event(mml, "both_set");
 	mml_mmp_events.flush = mmprofile_register_event(mml, "flush");
 	mml_mmp_events.submit_cb = mmprofile_register_event(mml, "submit_cb");
+	mml_mmp_events.taskdone = mmprofile_register_event(mml, "taskdone");
 	mml_mmp_events.racing_enter = mmprofile_register_event(mml, "racing_enter");
 	mml_mmp_events.racing_stop = mmprofile_register_event(mml, "racing_stop");
 	mml_mmp_events.racing_stop_sync = mmprofile_register_event(mml, "racing_stop_sync");

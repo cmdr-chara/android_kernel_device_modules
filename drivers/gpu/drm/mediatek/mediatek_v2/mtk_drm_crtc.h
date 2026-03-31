@@ -32,7 +32,11 @@
 #include "mtk_disp_pmqos.h"
 #include "slbc_ops.h"
 #include "mtk_disp_pq_helper.h"
-
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 start */
+#ifdef CONFIG_MI_DISP
+#include "mi_disp/mi_disp_esd_check.h"
+#endif
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 end */
 #define MAX_CRTC 4
 #define OVL_LAYER_NR 15L
 #define OVL_PHY_LAYER_NR 4L
@@ -485,19 +489,13 @@ enum MTK_CRTC_PROP {
 	CRTC_PROP_BL_SYNC_GAMMA_GAIN,
 	CRTC_PROP_DYNAMIC_WCG_OFF,
 	CRTC_PROP_WCG_BY_COLOR_MODE,
+	CRTC_PROP_MI_FOD_SYNC_INFO,
 	CRTC_PROP_MAX,
 };
 
 #define USER_SCEN_BLANK (BIT(0))
 #define USER_SCEN_SKIP_PANEL_SWITCH (BIT(1))
 #define USER_SCEN_SAME_POWER_MODE (BIT(2))
-
-
-enum disp_hrt_usage {
-	DISP_DISABLE,
-	DISP_ENABLE,
-	DISP_OPENING,
-};
 
 enum MTK_CRTC_COLOR_FMT {
 	CRTC_COLOR_FMT_UNKNOWN = 0,
@@ -896,6 +894,8 @@ struct pq_common_data {
 	atomic_t wake_ref;
 	struct wakeup_source *wake_lock;
 	char *wake_lock_name;
+	wait_queue_head_t cfg_done_wq;
+	atomic_t cfg_done;
 };
 
 struct mtk_vblank_config_rec {
@@ -955,7 +955,6 @@ struct mtk_drm_crtc {
 	unsigned int layer_nr;
 	bool pending_planes;
 	unsigned int ovl_usage_status;
-	enum disp_hrt_usage cur_usage;
 	void __iomem *ovlsys0_regs;
 	resource_size_t ovlsys0_regs_pa;
 	void __iomem *ovlsys1_regs;
@@ -1011,15 +1010,21 @@ struct mtk_drm_crtc {
 	struct task_struct *trigger_delay_task;
 	struct task_struct *trig_cmdq_task;
 	struct task_struct *last_little_TE_task;
+	struct task_struct *repaint_task;
 	atomic_t trig_event_act;
 	atomic_t trig_delay_act;
 	atomic_t delayed_trig;
 	atomic_t cmdq_trig;
 	atomic_t last_little_TE_for_check_trigger;
+	atomic_t repaint_act;
 	wait_queue_head_t trigger_delay;
 	wait_queue_head_t trigger_event;
 	wait_queue_head_t trigger_cmdq;
 	wait_queue_head_t last_little_TE_cmdq;
+	wait_queue_head_t repaint_event;
+
+	atomic_t fence_change;
+	atomic_t mml_trigger;
 
 	unsigned int avail_modes_num;
 	struct drm_display_mode *avail_modes;
@@ -1122,7 +1127,11 @@ struct mtk_drm_crtc {
 	bool is_dsc_output_swap;
 
 	bool capturing;
-
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 start */
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+	struct mi_esd_ctx *mi_esd_ctx;
+#endif
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 end */
 	int dli_relay_1tnp;
 
 	unsigned int total_srt;
@@ -1139,6 +1148,7 @@ struct mtk_drm_crtc {
 
 	unsigned int usage_ovl_fmt[OVL_LAYER_NR]; // for mt6989 hrt by larb
 
+	bool doze_into_suspend;
 	bool pending_update_pq;
 	unsigned int backup_bypass_pq;
 	unsigned int usage_ovl_weight[OVL_LAYER_NR];
@@ -1283,7 +1293,7 @@ void mtk_crtc_restore_plane_setting(struct mtk_drm_crtc *mtk_crtc);
 bool mtk_crtc_set_status(struct drm_crtc *crtc, bool status);
 int mtk_crtc_attach_addon_path_comp(struct drm_crtc *crtc,
 	const struct mtk_addon_module_data *module_data, bool is_attach);
-void mtk_crtc_connect_addon_module(struct drm_crtc *crtc);
+void mtk_crtc_connect_addon_module(struct drm_crtc *crtc, bool skip_cwb);
 void mtk_crtc_disconnect_addon_module(struct drm_crtc *crtc);
 int mtk_crtc_gce_flush(struct drm_crtc *crtc, void *gce_cb, void *cb_data,
 			struct cmdq_pkt *cmdq_handle);
@@ -1379,7 +1389,7 @@ void _mtk_crtc_atmoic_addon_module_connect(
 				      struct drm_crtc *crtc,
 				      unsigned int ddp_mode,
 				      struct mtk_lye_ddp_state *lye_state,
-				      struct cmdq_pkt *cmdq_handle);
+				      struct cmdq_pkt *cmdq_handle, bool skip_cwb);
 void _mtk_crtc_atmoic_addon_module_disconnect(
 	struct drm_crtc *crtc, unsigned int ddp_mode,
 	struct mtk_lye_ddp_state *lye_state, struct cmdq_pkt *cmdq_handle);
@@ -1402,7 +1412,9 @@ bool mtk_crtc_is_dual_pipe(struct drm_crtc *crtc);
 
 int mtk_drm_crtc_set_panel_hbm(struct drm_crtc *crtc, bool en);
 int mtk_drm_crtc_hbm_wait(struct drm_crtc *crtc, bool en);
-
+/* P16 code for BUGP16-3142 by p-zhangyundan at 2025/5/20 start */
+int mtk_drm_crtc_set_panel_hdr(struct drm_crtc *crtc, bool en);
+/* P16 code for BUGP16-3142 by p-zhangyundan at 2025/5/20 end */
 unsigned int mtk_get_mmsys_id(struct drm_crtc *crtc);
 int mtk_crtc_ability_chk(struct mtk_drm_crtc *mtk_crtc, enum MTK_CRTC_ABILITY ability);
 unsigned int *mtk_get_gce_backup_slot_va(struct mtk_drm_crtc *mtk_crtc,

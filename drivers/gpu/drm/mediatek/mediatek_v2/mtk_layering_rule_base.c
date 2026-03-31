@@ -2434,7 +2434,6 @@ static int _calc_hrt_num(struct drm_device *dev,
 
 	for (i = 0; i < disp_info->layer_num[disp]; i++) {
 		int ovl_idx;
-		int skipped = 0;
 
 		layer_info = &disp_info->input_config[disp][i];
 		layer_info->layer_hrt_weight = 0;
@@ -2474,26 +2473,22 @@ static int _calc_hrt_num(struct drm_device *dev,
 				}
 			}
 
-			if (layer_info->src_width > 40 || skipped == 1) {
-				sum_overlap_w += overlap_w;
-				add_layer_entry(layer_info, true, overlap_w);
-				if ((disp_idx == HRT_PRIMARY) && bw_monitor_is_on) {
-					sum_overlap_w_of_bwm += overlap_w_of_bwm;
-					DDPDBG_BWM("BWM line:%d sum_o_w:%d sum_o_w_of_bwm:%d\n",
-						__LINE__, sum_overlap_w, sum_overlap_w_of_bwm);
-					add_layer_entry_for_compare(layer_info, true,
-						overlap_w_of_bwm);
-				}
+			sum_overlap_w += overlap_w;
+			add_layer_entry(layer_info, true, overlap_w);
+			if ((disp_idx == HRT_PRIMARY) && bw_monitor_is_on) {
+				sum_overlap_w_of_bwm += overlap_w_of_bwm;
+				DDPDBG_BWM("BWM line:%d sum_o_w:%d sum_o_w_of_bwm:%d\n",
+					__LINE__, sum_overlap_w, sum_overlap_w_of_bwm);
+				add_layer_entry_for_compare(layer_info, true,
+					overlap_w_of_bwm);
+			}
 
-				if (priv && mtk_drm_helper_get_opt(priv->helper_opt,
-					MTK_DRM_OPT_LAYERING_RULE_BY_LARB)) {
-					layer_info->layer_hrt_weight = overlap_w;
-					if ((disp_idx == HRT_PRIMARY) && bw_monitor_is_on)
-						layer_info->layer_hrt_weight =
-								overlap_w_of_bwm;
-				}
-			} else {
-				skipped = 1;
+			if (priv && mtk_drm_helper_get_opt(priv->helper_opt,
+				MTK_DRM_OPT_LAYERING_RULE_BY_LARB)) {
+				layer_info->layer_hrt_weight = overlap_w;
+				if ((disp_idx == HRT_PRIMARY) && bw_monitor_is_on)
+					layer_info->layer_hrt_weight =
+							overlap_w_of_bwm;
 			}
 		} else if (i == disp_info->gles_head[disp]) {
 			/* Add GLES layer */
@@ -3262,11 +3257,16 @@ static void clear_layer(struct drm_mtk_layering_info *disp_info,
 
 		if (mtk_has_layer_cap(c, MTK_DISP_CLIENT_CLEAR_LAYER)) {
 			*scn_decision_flag |= SCN_CLEAR;
-			if ((*scn_decision_flag & SCN_IDLE)) {
+			DDPMSG("%s add hrt weight\n", __func__);
+			if (priv->data->need_emi_eff)
+				disp_info->hrt_weight += (400 * 10000) / default_emi_eff;
+			else
+				disp_info->hrt_weight += 400;
+			if ((di == 0) && get_layering_opt(LYE_OPT_OVL_BW_MONITOR)) {
 				if (priv->data->need_emi_eff)
-					disp_info->hrt_weight += (400 * 10000) / default_emi_eff;
+					sum_overlap_w_of_bwm += (400 * 10000) / default_emi_eff;
 				else
-					disp_info->hrt_weight += 400;
+					sum_overlap_w_of_bwm += 400;
 			}
 		}
 
@@ -3298,6 +3298,12 @@ static int _dispatch_lye_blob_idx(struct drm_mtk_layering_info *disp_info,
 	int rpo_idx = 0, mml_idx = 0;
 	unsigned int *comp_id_list = NULL, comp_id_nr;
 	struct mtk_drm_private *priv = drm_dev->dev_private;
+	unsigned int ovl0_num = 0, ovl2_num = 0, ovl2_total = 0;
+	unsigned int compress_status = 0;
+	unsigned int little_layer = 0;
+	struct drm_display_mode *mode = NULL;
+	struct drm_crtc *crtc = NULL;
+	unsigned int disp_h = 0;
 
 	if (get_layering_opt(LYE_OPT_SPHRT))
 		idx = 0;
@@ -3330,6 +3336,16 @@ static int _dispatch_lye_blob_idx(struct drm_mtk_layering_info *disp_info,
 			lyeblob_ids->fbt_gles_tail = disp_info->gles_tail[HRT_PRIMARY];
 		}
 	}
+
+	if (idx == 0) {
+		crtc = priv->crtc[idx];
+		mode = mtk_drm_crtc_avail_disp_mode(crtc, disp_info->disp_mode_idx[0]);
+		if (mode)
+			disp_h = mode->vdisplay;
+		else
+			disp_h = crtc->state->adjusted_mode.vdisplay;
+	}
+
 	for (i = 0; i < disp_info->layer_num[idx]; i++) {
 
 		layer_info = &disp_info->input_config[idx][i];
@@ -3458,6 +3474,25 @@ static int _dispatch_lye_blob_idx(struct drm_mtk_layering_info *disp_info,
 		} else
 			comp_state.layer_hrt_weight = 0;
 
+		if (idx == 0) {
+			if (layer_info->compress != 1 && layer_info->src_height == disp_h) {
+				if (comp_state.comp_id == DDP_COMPONENT_OVL0_2L)
+					ovl0_num++;
+				if (comp_state.comp_id == DDP_COMPONENT_OVL2_2L
+					&& comp_state.lye_id == 0)
+					ovl2_num++;
+			}
+			if (comp_state.comp_id == DDP_COMPONENT_OVL2_2L)
+				ovl2_total++;
+
+			if (comp_state.comp_id == DDP_COMPONENT_OVL1_2L) {
+				if (layer_info->compress != 1)
+					compress_status = 1;
+				if (layer_info->src_height < 160)
+					little_layer = 1;
+			}
+		}
+
 		lye_add_lye_priv_blob(&comp_state, lyeblob_ids, plane_idx,
 				      disp_idx, drm_dev);
 
@@ -3484,6 +3519,15 @@ static int _dispatch_lye_blob_idx(struct drm_mtk_layering_info *disp_info,
 		DDPINFO("%s disp_info->hrt_num=0x%x,no_comp_layer_num=%d\n",
 				__func__, disp_info->hrt_num,
 				no_compress_layer_num);
+
+		lyeblob_ids->balance_compensate[disp_idx] = 0;
+		if (ovl0_num == 2 && ovl2_num ==1 && ovl2_total == 1
+			&& compress_status ==0 && little_layer == 1){
+			lyeblob_ids->balance_compensate[disp_idx] = 1;
+		DDPINFO("%s comp %d, ovl0_n %d, ovl2_n %d, compress %d, lit_ly %d\n",
+				__func__, lyeblob_ids->balance_compensate[disp_idx],
+				ovl0_num, ovl2_num, compress_status, little_layer);
+		}
 	}
 
 	return 0;
@@ -3946,7 +3990,7 @@ void lye_add_blob_ids(struct drm_mtk_layering_info *l_info,
 	struct drm_crtc *crtc;
 	struct mtk_drm_crtc *mtk_crtc = NULL;
 	unsigned int disp_idx = 0;
-	unsigned int i;
+	unsigned int i, j, addweight = 0;
 
 	memcpy(lye_state->scn, l_rule_info->addon_scn, sizeof(lye_state->scn));
 	for (i = 0 ; i < HRT_DISP_TYPE_NUM ; i++) {
@@ -3986,6 +4030,26 @@ void lye_add_blob_ids(struct drm_mtk_layering_info *l_info,
 	lyeblob_ids->free_cnt_mask = crtc_mask;
 	lyeblob_ids->hrt_valid = g_hrt_valid;
 	lyeblob_ids->disp_status = l_info->disp_list;
+
+
+	if(priv->data->mmsys_id == MMSYS_MT6989) {
+		for (i = 0; i < HRT_DISP_TYPE_NUM; i++) {
+			if (addweight == 1)
+				break;
+			for (j = 0; j < l_info->layer_num[i]; j++) {
+				if(addweight == 1)
+					break;
+				if (l_info->input_config[i][j].src_width < 40) {
+					addweight = 1;
+					lyeblob_ids->frame_weight += 400 * 10000 / default_emi_eff;
+					lyeblob_ids->frame_weight_of_bwm += 400 * 10000 / default_emi_eff;
+					DDPINFO("%s:crtc:%d, L:%d, width : %d, add one layer\n", __func__, i, j,
+						l_info->input_config[i][j].src_width);
+					break;
+				}
+			}
+		}
+	}
 	INIT_LIST_HEAD(&lyeblob_ids->list);
 	mutex_lock(&priv->lyeblob_list_mutex);
 	if (get_layering_opt(LYE_OPT_SPHRT))

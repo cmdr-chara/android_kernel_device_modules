@@ -61,6 +61,8 @@ struct mml_mmp_events_t {
 	mmp_event wait_ready;
 	mmp_event throughput;
 	mmp_event bandwidth;
+	mmp_event both_set;
+	mmp_event taskdone;
 	mmp_event flush;
 	mmp_event submit_cb;
 	mmp_event racing_enter;

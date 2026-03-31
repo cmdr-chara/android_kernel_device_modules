@@ -26,7 +26,7 @@
 #define CONFIG_LEDS_BRIGHTNESS_CHANGED
 #include <linux/leds-mtk.h>
 #else
-#define mtk_leds_brightness_set(x, y) do { } while (0)
+#define mtk_leds_brightness_set(x, y, z, w) do {} while (0)
 #endif
 #define MT65XX_LED_MODE_CUST_LCM (4)
 
@@ -370,8 +370,8 @@ void disp_aal_notify_backlight_changed(struct mtk_ddp_comp *comp,
 	spin_unlock_irqrestore(&aal_data->primary_data->hist_lock, flags);
 	// always notify aal service for LED changed
 	mtk_drm_idlemgr_kick(__func__, &mtk_crtc->base, need_lock);
-
-	disp_aal_refresh_by_kernel(aal_data, need_lock);
+	if (aal_data->primary_data->led_type != TYPE_ATOMIC)
+		disp_aal_refresh_by_kernel(aal_data, need_lock);
 }
 
 #ifdef CONFIG_LEDS_BRIGHTNESS_CHANGED
@@ -1819,7 +1819,6 @@ bool dump_reg(struct mtk_ddp_comp *comp, bool locked)
 int mtk_drm_ioctl_aal_set_ess20_spect_param_impl(struct mtk_ddp_comp *comp, void *data)
 {
 	int ret = 0;
-	unsigned int flag = 0;
 	struct DISP_AAL_ESS20_SPECT_PARAM *param = (struct DISP_AAL_ESS20_SPECT_PARAM *) data;
 	struct mtk_disp_aal *aal_data = comp_to_aal(comp);
 	struct mtk_ddp_comp *output_comp = NULL;
@@ -1836,12 +1835,7 @@ int mtk_drm_ioctl_aal_set_ess20_spect_param_impl(struct mtk_ddp_comp *comp, void
 	AALAPI_LOG("[aal_kernel]ELVSSPN = %d, flag = %d\n",
 		aal_data->primary_data->ess20_spect_param.ELVSSPN,
 		aal_data->primary_data->ess20_spect_param.flag);
-	if (aal_data->primary_data->ess20_spect_param.flag & (1 << ENABLE_DYN_ELVSS)) {
-		AALAPI_LOG("[aal_kernel]enable dyn elvss, connector_id = %d, flag = %d\n",
-				connector_id, aal_data->primary_data->ess20_spect_param.flag);
-		flag = 1 << ENABLE_DYN_ELVSS;
-		mtk_leds_brightness_set(connector_id, 0, 0, flag);
-	}
+
 	return ret;
 }
 
@@ -1911,7 +1905,7 @@ int mtk_drm_ioctl_aal_set_param_impl(struct mtk_ddp_comp *comp, void *data)
 	else
 		aal_data->primary_data->ess20_spect_param.flag |= (1 << SET_BACKLIGHT_LEVEL);
 
-	if (prev_elvsspn == aal_data->primary_data->elvsspn_set)
+	if ((prev_elvsspn == aal_data->primary_data->elvsspn_set) && prev_backlight)
 		aal_data->primary_data->ess20_spect_param.flag &= (~(1 << SET_ELVSS_PN));
 	if (pq_data->new_persist_property[DISP_PQ_CCORR_SILKY_BRIGHTNESS]) {
 		if (aal_data->primary_data->aal_param.silky_bright_flag == 0) {
@@ -4034,12 +4028,7 @@ static void mtk_aal_primary_data_init(struct mtk_ddp_comp *comp)
 	aal_data->primary_data->dre_en_cmd_id = 0;
 	aal_data->primary_data->ess_en_cmd_id = 0;
 	aal_data->primary_data->isDualPQ = 0;
-	aal_data->primary_data->led_type = TYPE_FILE;
-
-#ifdef CONFIG_LEDS_BRIGHTNESS_CHANGED
-	if (comp->id == DDP_COMPONENT_AAL0)
-		mtk_leds_register_notifier(&leds_init_notifier);
-#endif
+	//aal_data->primary_data->led_type = TYPE_FILE;
 
 	aal_data->primary_data->refresh_wq = create_singlethread_workqueue("aal_refresh_trigger");
 	INIT_WORK(&aal_data->primary_data->refresh_task.task, mtk_disp_aal_refresh_trigger);
@@ -4241,7 +4230,8 @@ static int mtk_aal_cfg_set_param(struct mtk_ddp_comp *comp,
 		aal_data->primary_data->ess20_spect_param.flag &= (~(1 << SET_BACKLIGHT_LEVEL));
 	else
 		aal_data->primary_data->ess20_spect_param.flag |= (1 << SET_BACKLIGHT_LEVEL);
-	if (prev_elvsspn == aal_data->primary_data->elvsspn_set)
+
+	if (prev_elvsspn == aal_data->primary_data->elvsspn_set && prev_backlight)
 		aal_data->primary_data->ess20_spect_param.flag &= (~(1 << SET_ELVSS_PN));
 
 	if (pq_data->new_persist_property[DISP_PQ_CCORR_SILKY_BRIGHTNESS]) {
@@ -4890,7 +4880,10 @@ static int mtk_disp_aal_probe(struct platform_device *pdev)
 		dev_err(dev, "Failed to add component: %d\n", ret);
 		mtk_ddp_comp_pm_disable(&priv->ddp_comp);
 	}
-
+#ifdef CONFIG_LEDS_BRIGHTNESS_CHANGED
+	if (comp_id == DDP_COMPONENT_AAL0)
+		mtk_leds_register_notifier(&leds_init_notifier);
+#endif
 	AALFLOW_LOG("-\n");
 error_primary:
 	if (ret < 0)

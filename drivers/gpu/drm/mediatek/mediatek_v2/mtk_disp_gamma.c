@@ -1676,7 +1676,7 @@ int mtk_gamma_set_silky_brightness_gain(struct mtk_ddp_comp *comp, struct cmdq_p
 
 			return -EFAULT;
 		}
-
+		CRTC_MMP_MARK(0, gamma_backlight, gamma->primary_data->sb_param.gain[gain_r], (unsigned long)handle);
 		DDPINFO("%s : gain(r: %d, g: %d, b: %d), range: %d, handle: %p\n", __func__,
 			gamma->primary_data->sb_param.gain[gain_r],
 			gamma->primary_data->sb_param.gain[gain_g],

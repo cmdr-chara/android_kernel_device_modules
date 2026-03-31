@@ -1227,9 +1227,9 @@ static enum mml_mode tp_query_mode(struct mml_dev *mml, struct mml_frame_info *i
 	if (info->alpha) {
 		*reason = mml_query_alpha;
 		if (!MML_FMT_ALPHA(info->src.format) ||
-		    info->src.width <= 9 ||
+		    info->src.width <= 32 ||
 		    info->dest_cnt != 1 ||
-		    info->dest[0].crop.r.width <= 9 ||
+		    info->dest[0].crop.r.width < 50 ||
 		    info->dest[0].compose.width <= 9)
 			goto not_support;
 		return MML_MODE_MML_DECOUPLE;
@@ -1248,6 +1248,12 @@ static enum mml_mode tp_query_mode(struct mml_dev *mml, struct mml_frame_info *i
 	}
 
 	if (!MML_FMT_COMPRESS(info->src.format)) {
+		*reason = mml_query_format;
+		return MML_MODE_MML_DECOUPLE;
+	}
+
+	if ((MML_FMT_AFBC(info->src.format) && MML_FMT_IS_ARGB(info->src.format)) ||
+	    info->src.format == MML_FMT_P010_HYFBC) {
 		*reason = mml_query_format;
 		return MML_MODE_MML_DECOUPLE;
 	}

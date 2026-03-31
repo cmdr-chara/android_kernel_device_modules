@@ -40,6 +40,7 @@
 #include "mtk_drm_gem.h"
 #include "platform/mtk_drm_platform.h"
 #include "mtk_drm_assert.h"
+#include "mtk_drm_fb.h"
 
 #include "slbc_ops.h"
 #include "../mml/mtk-mml.h"
@@ -274,6 +275,7 @@ int mtk_dprec_mmp_dump_ovl_layer(struct mtk_plane_state *plane_state);
 #define DISP_REG_OVL_ADDR(module, n) ((module)->data->addr + 0x20 * (n))
 #define DISP_REG_OVL_STASH_CFG0 (0xAE0UL)
 #define DISP_REG_OVL_STASH_CFG1 (0xAE4UL)
+#define DISP_REG_OVL_STASH_CFG2 (0xAE8UL)
 
 #define DISP_REG_OVL_PQ_LOOP_CON (0x2E0UL)
 #define DISP_OVL_PQ_OUT_SIZE_SEL BIT(0)
@@ -434,6 +436,7 @@ enum GS_OVL_FLD {
 	GS_OVL_BLOCK_EXT_PRE_ULTRA,
 	GS_OVL_STASH_EN,
 	GS_OVL_STASH_CFG,
+	GS_OVL_STASH_CFG2,
 	GS_OVL_FLD_NUM,
 };
 
@@ -952,11 +955,27 @@ static void mtk_ovl_update_hrt_usage(struct mtk_drm_crtc *mtk_crtc,
 	unsigned int lye_id = plane_state->comp_state.lye_id;
 	unsigned int ext_lye_id = plane_state->comp_state.ext_lye_id;
 	unsigned int weight = plane_state->comp_state.layer_hrt_weight;
-	unsigned int fmt = plane_state->pending.format;
+	unsigned int fmt;
 	int crtc_idx = drm_crtc_index(&mtk_crtc->base);
 	unsigned int phy_id = 0;
 	struct mtk_drm_private *priv = NULL;
 
+	if (!plane_state->base.fb) {
+		DDPINFO("%s ovl:%d,lye:%d,ext:%d, not found fb\n", __func__,
+				plane_state->comp_state.comp_id,
+				plane_state->comp_state.lye_id,
+				plane_state->comp_state.ext_lye_id);
+		return;
+	}
+	DDPINFO("%s ovl:%d,lye:%d,ext:%d,w:%u,fmt:0x%x, addr:0x%llx\n", __func__,
+			plane_state->comp_state.comp_id,
+			plane_state->comp_state.lye_id,
+			plane_state->comp_state.ext_lye_id,
+			plane_state->comp_state.layer_hrt_weight,
+			plane_state->base.fb->format->format,
+			mtk_fb_get_dma(plane_state->base.fb));
+
+	fmt = plane_state->base.fb->format->format;
 	priv = mtk_crtc->base.dev->dev_private;
 	if (ovl->data->ovl_phy_mapping) {
 		phy_id = ovl->data->ovl_phy_mapping(comp);
@@ -2803,6 +2822,16 @@ static void mtk_ovl_layer_config(struct mtk_ddp_comp *comp, unsigned int idx,
 			comp->regs_pa + DISP_REG_OVL_LC_SRC_SEL, value, mask);
 	}
 
+	if (priv->data->mmsys_id == MMSYS_MT6989) {
+		if (pending->enable) {//enable and not ext layer
+			if (ext_lye_idx == 0)
+				mtk_crtc->usage_ovl_fmt[(ovl->data->ovl_phy_mapping(comp) + lye_idx)] =
+					mtk_get_format_bpp(fmt);
+		} else {
+			mtk_crtc->usage_ovl_fmt[(ovl->data->ovl_phy_mapping(comp) + lye_idx)] = 0;
+		}
+	}
+
 #define _LAYER_CONFIG_FMT \
 	"%s %s idx:%d lye_idx:%d ext_idx:%d en:%d fmt:0x%x " \
 	"addr:0x%lx compr:%d con:0x%x offset:0x%x lye_cap:%x mml:%d\n"
@@ -3868,6 +3897,7 @@ void mtk_ovl_cal_golden_setting(struct mtk_ddp_config *cfg,
 		gs[GS_OVL_STASH_EN] = 0;
 
 	gs[GS_OVL_STASH_CFG] = (data->stash_cfg) ? (data->stash_cfg) : 0;
+	gs[GS_OVL_STASH_CFG2] = (data->stash_cfg2) ? (data->stash_cfg2) : 0;
 
 }
 
@@ -3968,6 +3998,12 @@ static int mtk_ovl_golden_setting(struct mtk_ddp_comp *comp,
 	if (regval) {
 		cmdq_pkt_write(handle, comp->cmdq_base,
 		       baddr + DISP_REG_OVL_STASH_CFG1, regval, ~0);
+	}
+
+	regval = gs[GS_OVL_STASH_CFG2];
+	if (regval) {
+		cmdq_pkt_write(handle, comp->cmdq_base,
+		       baddr + DISP_REG_OVL_STASH_CFG2, regval, ~0);
 	}
 
 	return 0;
@@ -4671,6 +4707,8 @@ void mtk_ovl_dump_golden_setting(struct mtk_ddp_comp *comp)
 	DDPDUMP("OVL_STASH_CFG0:%x\n", value);
 	value = readl(DISP_REG_OVL_STASH_CFG1 + baddr);
 	DDPDUMP("OVL_STASH_CFG1:%x\n", value);
+	value = readl(DISP_REG_OVL_STASH_CFG2 + baddr);
+	DDPDUMP("OVL_STASH_CFG2:%x\n", value);
 
 }
 
@@ -5590,7 +5628,8 @@ static const struct mtk_disp_ovl_data mt6989_ovl_driver_data = {
 	.issue_req_th_urg_dc = 31,
 	.greq_num_dl = 0xFFFF,
 	.stash_en = 0x73,
-	.stash_cfg = 0x10080400,
+	.stash_cfg = 0x270D0800,
+	.stash_cfg2 = 0x770F0F,
 	.is_support_34bits = true,
 	.aid_sel_mapping = &mtk_ovl_aid_sel_MT6989,
 	.aid_per_layer_setting = true,

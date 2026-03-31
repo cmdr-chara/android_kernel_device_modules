@@ -280,8 +280,8 @@ u32 mml_qos_update_tput(struct mml_dev *mml, bool dpc, u32 peak_bw)
 	if (mml->current_volt == volt)	/* skip for better performance */
 		goto done;
 
-	mml_msg_qos("%s dvfs update %u to %u(%u)",
-		__func__, mml->current_volt, volt, tp->opp_speeds[i]);
+	mml_msg_qos("%s dvfs update %u to %u(%u) by tput %u",
+		__func__, mml->current_volt, volt, tp->opp_speeds[i], tput);
 	mml->current_volt = volt;
 	mml_trace_begin("mml_volt_%u", volt);
 
@@ -300,6 +300,7 @@ u32 mml_qos_update_tput(struct mml_dev *mml, bool dpc, u32 peak_bw)
 				peak_bw = 0;
 		}
 
+		mml_mmp(both_set, MMPROFILE_FLAG_PULSE, i, peak_bw);
 		mml_dpc_dvfs_both_set(DPC_SUBSYS_MML, i, false, peak_bw);
 	} else {
 		if (tp->reg) {
@@ -710,6 +711,13 @@ s32 mml_comp_init_larb(struct mml_comp *comp, struct device *dev)
 			__func__, comp->name ? comp->name : "");
 		comp->icc_dpc_path = NULL;
 	}
+
+	comp->icc_hrt_path = of_mtk_icc_get(dev, "mml_dma_hrt");
+	if (IS_ERR_OR_NULL(comp->icc_hrt_path)) {
+		mml_log("%s %s not support hrt qos",
+			__func__, comp->name ? comp->name : "");
+		comp->icc_hrt_path = NULL;
+	}
 #endif
 
 	return 0;
@@ -1095,6 +1103,7 @@ void mml_comp_qos_set(struct mml_comp *comp, struct mml_task *task,
 			}
 
 			mtk_icc_set_bw(comp->icc_dpc_path, srt_icc, hrt_icc);
+			mtk_icc_set_bw(comp->icc_hrt_path, srt_icc, MBps_to_icc(hrt_bw));
 		} else
 			mtk_icc_set_bw(comp->icc_path,
 				MBps_to_icc(bandwidth), MBps_to_icc(hrt_bw));
@@ -1117,9 +1126,10 @@ void mml_comp_qos_set(struct mml_comp *comp, struct mml_task *task,
 void mml_comp_qos_clear(struct mml_comp *comp, bool dpc)
 {
 #ifndef MML_FPGA
-	if (dpc)
+	if (dpc) {
 		mtk_icc_set_bw(comp->icc_dpc_path, 0, 0);
-	else
+		mtk_icc_set_bw(comp->icc_hrt_path, 0, 0);
+	} else
 		mtk_icc_set_bw(comp->icc_path, 0, 0);
 #endif
 	comp->cur_bw = 0;

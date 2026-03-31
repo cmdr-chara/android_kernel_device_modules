@@ -681,7 +681,7 @@ static void mtk_wdma_calc_golden_setting(struct golden_setting_context *gsc,
 	unsigned int fifo;
 	unsigned int factor1 = 4;
 	unsigned int factor2 = 4;
-	unsigned int tmp;
+	unsigned int tmp, field;
 
 	if (gsc->vrefresh == 0 || priv->data->mmsys_id == MMSYS_MT6886)
 		frame_rate = 60;
@@ -768,6 +768,14 @@ static void mtk_wdma_calc_golden_setting(struct golden_setting_context *gsc,
 
 	if (priv->data->mmsys_id == MMSYS_MT6897)
 		gs[GS_WDMA_BUF_CON1] += (fifo_size_uv << 12) + fifo_size;
+	else if (wdma->info_data->buf_con1_fld_fifo_pseudo_size &&
+		wdma->info_data->buf_con1_fld_fifo_pseudo_size_uv) {
+		field = wdma->info_data->buf_con1_fld_fifo_pseudo_size;
+		fifo_size = REG_FLD_VAL(field, fifo_size);
+		field = wdma->info_data->buf_con1_fld_fifo_pseudo_size_uv;
+		fifo_size_uv = REG_FLD_VAL(field, fifo_size_uv);
+		gs[GS_WDMA_BUF_CON1] += fifo_size_uv + fifo_size;
+	}
 	else
 		gs[GS_WDMA_BUF_CON1] += (fifo_size_uv << 10) + fifo_size;
 
@@ -994,6 +1002,9 @@ static void mtk_wdma_golden_setting(struct mtk_ddp_comp *comp,
 
 	/* WDMA_BUF_CON1 */
 	value = gs[GS_WDMA_BUF_CON1];
+	DDPINFO("%s, 0x38: value:0x%x\n", __func__, value);
+	if (wdma->info_data->is_cwb)
+		value = gs[GS_WDMA_BUF_CON1] | 0xc0000000;/* always ultra */
 	mtk_ddp_write(comp, value, DISP_REG_WDMA_BUF_CON1, handle);
 	//	DISP_REG_SET(cmdq, offset + DISP_REG_WDMA_BUF_CON1, value);
 
@@ -1004,16 +1015,25 @@ static void mtk_wdma_golden_setting(struct mtk_ddp_comp *comp,
 
 	/* WDMA BUF CONST 6 */
 	value = gs[GS_WDMA_PRE_ULTRA_HIGH_Y] + (gs[GS_WDMA_ULTRA_HIGH_Y] << 16);
+	if (wdma->info_data->is_cwb)
+		value =0x10001;/* always ultra */
+	DDPINFO("%s, 0x204: value:0x%x\n", __func__, value);
 	mtk_ddp_write(comp, value, DISP_REG_WDMA_BUF_CON6, handle);
 	// DISP_REG_SET(cmdq, offset + DISP_REG_WDMA_BUF_CON6, value);
 
 	/* WDMA BUF CONST 7 */
 	value = gs[GS_WDMA_PRE_ULTRA_LOW_U] + (gs[GS_WDMA_ULTRA_LOW_U] << 16);
+	if (wdma->info_data->is_cwb)
+		value =0x10001;/* always ultra */
+	DDPINFO("%s, 0x208: value:0x%x\n", __func__, value);
 	mtk_ddp_write(comp, value, DISP_REG_WDMA_BUF_CON7, handle);
 	// DISP_REG_SET(cmdq, offset + DISP_REG_WDMA_BUF_CON7, value);
 
 	/* WDMA BUF CONST 8 */
 	value = gs[GS_WDMA_PRE_ULTRA_HIGH_U] + (gs[GS_WDMA_ULTRA_HIGH_U] << 16);
+	if (wdma->info_data->is_cwb)
+		value =0x10001;/* always ultra */
+	DDPINFO("%s, 0x20c: value:0x%x\n", __func__, value);
 	mtk_ddp_write(comp, value, DISP_REG_WDMA_BUF_CON8, handle);
 	// DISP_REG_SET(cmdq, offset + DISP_REG_WDMA_BUF_CON8, value);
 
@@ -1458,7 +1478,7 @@ static void mtk_wdma_config(struct mtk_ddp_comp *comp,
 	mtk_ddp_write_mask(comp, 0xe0000000,
 			DISP_REG_WDMA_CFG, WDMA_DEBUG_SEL, handle);
 
-	if (comp->mtk_crtc->cur_usage == DISP_OPENING)
+	if (priv->usage[crtc_idx] == DISP_OPENING)
 		mtk_wdma_blank_output(comp, handle, 1);
 	else
 		mtk_wdma_blank_output(comp, handle, 0);
@@ -1628,8 +1648,8 @@ golden_setting:
 	gsc = addon_config->addon_wdma_config.p_golden_setting_context;
 	mtk_wdma_golden_setting(comp, gsc, handle);
 
-	DDPINFO("[capture] config addr:0x%lx, roi:(%d,%d,%d,%d)\n",
-		(unsigned long)addr, clip_x, clip_y, clip_w, clip_h);
+	DDPINFO("[capture] config addr:0x%lx, roi:(%d,%d,%d,%d), is_cwb=%u\n",
+		(unsigned long)addr, clip_x, clip_y, clip_w, clip_h, wdma->info_data->is_cwb);
 	cfg_info->addr = addr;
 	cfg_info->width = clip_w;
 	cfg_info->height = clip_h;
@@ -2282,12 +2302,25 @@ static int mtk_disp_wdma_probe(struct platform_device *pdev)
 			priv->info_data->is_support_ufbc = true;
 	}
 
+	ret = of_property_read_u32(dev->of_node,
+				"is-cwb", &(priv->info_data->is_cwb));
+	if (ret)
+		DDPMSG("Failed to parse is_cwb parse failed from dts\n");
+	else
+		DDPMSG("%s, is_cwb=%u, pa=0x%llx\n", __func__,
+			priv->info_data->is_cwb, (u64)priv->ddp_comp.regs_pa);
+
 	priv->info_data->fifo_size_1plane = priv->data->fifo_size_1plane;
 	priv->info_data->fifo_size_uv_1plane = priv->data->fifo_size_uv_1plane;
 	priv->info_data->fifo_size_2plane = priv->data->fifo_size_2plane;
 	priv->info_data->fifo_size_uv_2plane = priv->data->fifo_size_uv_2plane;
 	priv->info_data->fifo_size_3plane = priv->data->fifo_size_3plane;
 	priv->info_data->fifo_size_uv_3plane = priv->data->fifo_size_uv_3plane;
+	priv->info_data->force_ostdl_bw = priv->data->force_ostdl_bw;
+	priv->info_data->buf_con1_fld_fifo_pseudo_size =
+			priv->data->buf_con1_fld_fifo_pseudo_size;
+	priv->info_data->buf_con1_fld_fifo_pseudo_size_uv =
+			priv->data->buf_con1_fld_fifo_pseudo_size_uv;
 
 	if (priv->data->fifo_size_1plane == PARSE_FROM_DTS) {
 		ret = of_property_read_u32(dev->of_node,
@@ -2516,6 +2549,9 @@ static const struct mtk_disp_wdma_data mt6989_wdma_driver_data = {
 	.fifo_size_uv_2plane = PARSE_FROM_DTS,
 	.fifo_size_3plane = PARSE_FROM_DTS,
 	.fifo_size_uv_3plane = PARSE_FROM_DTS,
+	.force_ostdl_bw = 7000,
+	.buf_con1_fld_fifo_pseudo_size = REG_FLD_MSB_LSB(11, 0),
+	.buf_con1_fld_fifo_pseudo_size_uv = REG_FLD_MSB_LSB(22, 12),
 	.sodi_config = mt6989_mtk_sodi_config,
 	.aid_sel = &mtk_wdma_aid_sel_MT6989,
 	.check_wdma_sec_reg = &mtk_wdma_check_sec_reg_MT6989,

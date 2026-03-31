@@ -81,6 +81,7 @@ struct mtk_disp_color_primary {
 	struct color_backup color_backup;
 	struct DISP_AAL_DRECOLOR_PARAM drecolor_param;
 	struct mutex reg_lock;
+	atomic_t initialed;
 };
 
 /**
@@ -1570,12 +1571,10 @@ void mtk_color_bypass(struct mtk_ddp_comp *comp, int bypass,
 
 	if (bypass) {
 		cmdq_pkt_write(handle, comp->cmdq_base,
-			       comp->regs_pa + DISP_COLOR_CFG_MAIN,
-			       COLOR_BYPASS_ALL | COLOR_SEQ_SEL, ~0);
+			       comp->regs_pa + DISP_COLOR_CFG_MAIN, COLOR_BYPASS_ALL, COLOR_BYPASS_ALL);
 	} else {
 		cmdq_pkt_write(handle, comp->cmdq_base,
-			comp->regs_pa + DISP_COLOR_CFG_MAIN,
-			(0 << 7), 0xFF); /* resume all */
+			comp->regs_pa + DISP_COLOR_CFG_MAIN, 0, COLOR_BYPASS_ALL); /* resume all */
 	}
 }
 
@@ -2568,7 +2567,7 @@ COLOR_3D :
 		color_data->primary_data = companion_data->primary_data;
 		return;
 	}
-
+	atomic_set(&primary_data->initialed, 0);
 	primary_data->legacy_color_cust = false;
 	primary_data->color_param.u4SHPGain = 2;
 	primary_data->color_param.u4SatGain = 4;
@@ -2831,6 +2830,7 @@ static void ddp_color_backup(struct mtk_ddp_comp *comp)
 
 	primary_data->color_backup.COLOR_CFG_MAIN =
 		readl(comp->regs + DISP_COLOR_CFG_MAIN);
+	atomic_set(&primary_data->initialed, 1);
 }
 
 static void ddp_color_restore(struct mtk_ddp_comp *comp)
@@ -2838,6 +2838,8 @@ static void ddp_color_restore(struct mtk_ddp_comp *comp)
 	struct mtk_disp_color_primary *primary_data =
 		comp_to_color(comp)->primary_data;
 
+	if (atomic_read(&primary_data->initialed) != 1)
+		return;
 	writel(primary_data->color_backup.COLOR_CFG_MAIN, comp->regs + DISP_COLOR_CFG_MAIN);
 }
 

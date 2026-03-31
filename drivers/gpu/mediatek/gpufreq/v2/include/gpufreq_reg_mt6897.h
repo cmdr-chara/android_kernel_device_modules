@@ -156,6 +156,9 @@
 #define MFG_RPC_PWR_CON_STATUS          (MFG_RPC_BASE + 0x1200)               /* 0x13F91200 */
 #define MFG_RPC_PWR_CON_2ND_STATUS      (MFG_RPC_BASE + 0x1204)               /* 0x13F91204 */
 
+#define GPUEB_MBOX_BASE                 (g_gpueb_mbox_base)                   /* 0x13C62000 */
+#define GPUEB_MBOX_PDCA_STA             (GPUEB_MBOX_BASE + 0xA8)              /* 0x13C620A8 */
+
 #define SPM_BASE                        (g_sleep)                             /* 0x1C001000 */
 #define SPM_SPM2GPUPM_CON               (SPM_BASE + 0x410)                    /* 0x1C001410 */
 #define SPM_SRC_REQ                     (SPM_BASE + 0x818)                    /* 0x1C001818 */

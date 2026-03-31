@@ -67,7 +67,11 @@ mediatek-drm-y := mtk_drm_drv.o \
 
 #ccflags-y += -DDRM_CMDQ_DISABLE
 #mediatek-drm-y += mtk_cmdq_dummy.o
-
+# P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 start
+ifeq ($(CONFIG_MI_DISP),y)
+    include $(src)/mi_disp/Makefile
+endif
+# P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 end
 ifeq ($(CONFIG_DRM_MEDIATEK_DEBUG_FS),y)
 mediatek-drm-y += mtk_drm_debugfs.o
 endif
@@ -139,6 +143,8 @@ ccflags-$(CONFIG_MTK_CMDQ_MBOX_EXT) += -I$(DEVICE_MODULES_PATH)/drivers/misc/med
 ccflags-y += -DNOT_SUPPORT_CABC_HW
 ccflags-y += -DDISP_MDP_COLOR_ON
 ccflags-y += -DCCORR_SUPPORT
-
+# P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 start
 subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/
 subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/misc/mediatek/include/mt-plat/
+subdir-ccflags-y += -I$(DEVICE_MODULES_PATH)/drivers/gpu/drm/mediatek/mediatek_v2/
+# P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 end

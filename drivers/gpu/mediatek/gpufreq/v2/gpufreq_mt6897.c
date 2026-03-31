@@ -38,6 +38,7 @@
 #include <mtk_gpu_utility.h>
 #include <gpufreq_history_common.h>
 #include <gpufreq_history_mt6897.h>
+#include <gpueb_debug.h>
 
 #if IS_ENABLED(CONFIG_MTK_STATIC_POWER)
 #include <leakage_table_v2/mtk_static_power.h>
@@ -174,6 +175,7 @@ static void __iomem *g_mfg_top_base;
 static void __iomem *g_mfg_pll_base;
 static void __iomem *g_mfgsc_pll_base;
 static void __iomem *g_mfg_rpc_base;
+static void __iomem *g_gpueb_mbox_base;
 static void __iomem *g_sleep;
 static void __iomem *g_topckgen_base;
 static void __iomem *g_nth_emicfg_base;
@@ -264,6 +266,7 @@ static struct gpufreq_platform_fp platform_eb_fp = {
 	.get_dyn_pgpu = __gpufreq_get_dyn_pgpu,
 	.get_core_mask_table = __gpufreq_get_core_mask_table,
 	.get_core_num = __gpufreq_get_core_num,
+	.pdca_polling_ack = __gpufreq_pdca_polling_ack,
 };
 
 /**
@@ -1561,6 +1564,23 @@ void __gpufreq_pdca_config(enum gpufreq_power_state power)
 #else
 	GPUFREQ_UNREFERENCED(power);
 #endif /* GPUFREQ_PDCA_ENABLE */
+}
+
+void __gpufreq_pdca_polling_ack(enum gpufreq_power_state power)
+{
+	int i = 0;
+
+	if (power == GPU_PWR_OFF) {
+		while (DRV_Reg32(GPUEB_MBOX_PDCA_STA) & BIT(16)) {
+			udelay(1);
+			/* polling ack 1s */
+			if (++i > 1000000) {
+				gpueb_dump_status(NULL, NULL, 0);
+				__gpufreq_abort("timeout, %s=0x%08x",
+					"GPUEB_MBOX_PDCA_STA", DRV_Reg32(GPUEB_MBOX_PDCA_STA));
+			}
+		}
+	}
 }
 
 /* API: init first time shared status */
@@ -4832,6 +4852,18 @@ static int __gpufreq_init_platform_info(struct platform_device *pdev)
 	g_mfg_rpc_base = devm_ioremap(gpufreq_dev, res->start, resource_size(res));
 	if (unlikely(!g_mfg_rpc_base)) {
 		GPUFREQ_LOGE("fail to ioremap MFG_RPC: 0x%llx", res->start);
+		goto done;
+	}
+
+	/* 0x13C62000 */
+	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "gpueb_mbox");
+	if (unlikely(!res)) {
+		GPUFREQ_LOGE("fail to get resource GPUEB_MBOX");
+		goto done;
+	}
+	g_gpueb_mbox_base = devm_ioremap(gpufreq_dev, res->start, resource_size(res));
+	if (unlikely(!g_gpueb_mbox_base)) {
+		GPUFREQ_LOGE("fail to ioremap GPUEB_MBOX: 0x%llx", res->start);
 		goto done;
 	}
 

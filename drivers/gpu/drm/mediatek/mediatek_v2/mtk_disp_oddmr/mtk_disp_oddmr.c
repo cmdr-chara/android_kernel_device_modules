@@ -3519,6 +3519,44 @@ void mtk_oddmr_set_pq_dirty(void)
 {
 	atomic_set(&g_oddmr_pq_dirty, 1);
 }
+int mtk_oddmr_hrt_cal(int *oddmr_hrt)
+{
+	int sum = 0, ret = 0;
+	unsigned long long res_ratio = 1000;
+	struct mtk_drm_crtc *mtk_crtc;
+	struct mtk_drm_private *priv = NULL;
+
+	if (!default_comp || !g_oddmr_priv) {
+		ret = 0;
+		return ret;
+	}
+
+	mtk_crtc = default_comp->mtk_crtc;
+	priv = mtk_crtc->base.dev->dev_private;
+	if (is_oddmr_dbi_support) {
+		/* DBI HRT */
+		if (g_oddmr_priv->dbi_enable)
+			sum += mtk_oddmr_dbi_bpp(
+					g_dmr_param.dmr_basic_info.basic_param.dmr_table_mode);
+
+		if (mtk_crtc->scaling_ctx.scaling_en) {
+			res_ratio =
+				((unsigned long long)mtk_crtc->scaling_ctx.lcm_width *
+				mtk_crtc->scaling_ctx.lcm_height * 1000) /
+				((unsigned long long)mtk_crtc->base.state->adjusted_mode.vdisplay *
+				mtk_crtc->base.state->adjusted_mode.hdisplay);
+		}
+		sum = sum * res_ratio / 1000;
+		ODDMRLOW_LOG("dbi %d sum %d res_ratio %llu\n",
+				g_oddmr_priv->dbi_enable, sum, res_ratio);
+	}
+
+	*oddmr_hrt += sum;
+	ret = sum;
+
+	return ret;
+}
+
 
 int mtk_oddmr_hrt_cal_notify(int *oddmr_hrt)
 {

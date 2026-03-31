@@ -39,16 +39,17 @@ struct mtk_larb_hrt_req {
 	unsigned int last_larb_bw;
 	struct icc_path *hrt_req;
 };
-
+/* P16 code for BUGP16-7448 by p-zhangyundan at 2025/7/14 start */
 struct mtk_drm_qos_ctx {
 	unsigned int last_hrt_req;
 	unsigned int last_mmclk_req_idx;
+	unsigned int mmclk_need_up_now;
 	unsigned int last_larb_hrt_max;
 	atomic_t last_hrt_idx;
 	atomic_t hrt_cond_sig;
 	wait_queue_head_t hrt_cond_wq;
 };
-
+/* P16 code for BUGP16-7448 by p-zhangyundan at 2025/7/14 end */
 void mtk_disp_pmqos_get_icc_path_name(char *buf, int buf_len,
 				struct mtk_ddp_comp *comp, char *qos_event);
 int __mtk_disp_set_module_srt(struct icc_path *request, int comp_id,

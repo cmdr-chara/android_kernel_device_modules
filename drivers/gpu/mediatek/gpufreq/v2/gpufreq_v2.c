@@ -1129,6 +1129,22 @@ void gpufreq_pdca_config(enum gpufreq_power_state power)
 EXPORT_SYMBOL(gpufreq_pdca_config);
 
 /***********************************************************************************
+ * Function Name      : gpufreq_pdca_polling_ack
+ * Inputs             : power          - Target power state
+ * Outputs            : -
+ * Returns            : -
+ * Description        : Polling PDCA power on/off ACK
+ ***********************************************************************************/
+void gpufreq_pdca_polling_ack(enum gpufreq_power_state power)
+{
+	if (gpufreq_fp && gpufreq_fp->pdca_polling_ack)
+		gpufreq_fp->pdca_polling_ack(power);
+	else
+		GPUFREQ_LOGE("null gpufreq platform function pointer (ENOENT)");
+}
+EXPORT_SYMBOL(gpufreq_pdca_polling_ack);
+
+/***********************************************************************************
  * Function Name      : gpufreq_fake_mtcmos_control
  * Inputs             : power          - Target power state
  * Outputs            : -

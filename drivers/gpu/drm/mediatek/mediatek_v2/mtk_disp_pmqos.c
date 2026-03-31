@@ -19,6 +19,8 @@
 #include <dt-bindings/interconnect/mtk,mmqos.h>
 #include <soc/mediatek/mmqos.h>
 #include <soc/mediatek/mmdvfs_v3.h>
+#include "mtk_disp_oddmr/mtk_disp_oddmr.h"
+
 
 #define CRTC_NUM		4
 static struct drm_crtc *dev_crtc;
@@ -243,9 +245,10 @@ static unsigned int mtk_disp_larb_hrt_bw_MT6989(struct mtk_drm_crtc *mtk_crtc,
 	int max_sub_comm = 4; // 6989 sub common num
 	int max_ovl_phy_layer = 12; // 6989 phy ovl layer num
 	unsigned int subcomm_bw_sum[4] = {0};
+	unsigned int oddmr_hrt = 0;
 	/* sub_comm0: layer0 + layer4 + layer9
 	 * sub_comm1: layer1 + layer5 + layer8
-	 * sub_comm2: layer2 + layer7 + layer11
+	 * sub_comm2: layer2 + layer7 + layer11 + dbi
 	 * sub_comm3: layer3 + layer6 + layer10
 	 */
 	for (i = 0; i < max_ovl_phy_layer; i++) {
@@ -260,6 +263,9 @@ static unsigned int mtk_disp_larb_hrt_bw_MT6989(struct mtk_drm_crtc *mtk_crtc,
 				subcomm_bw_sum[3] += bw_base * mtk_crtc->usage_ovl_fmt[i] / 4;
 		}
 	}
+
+	mtk_oddmr_hrt_cal(&oddmr_hrt);
+	subcomm_bw_sum[2] += bw_base * oddmr_hrt / 400;
 
 	return mtk_disp_getMaxBW(subcomm_bw_sum, max_sub_comm, total_bw);
 }
@@ -606,6 +612,8 @@ int mtk_disp_set_per_larb_hrt_bw(struct mtk_drm_crtc *mtk_crtc, unsigned int bw)
 		return 0;
 
 	comp = mtk_ddp_comp_request_output(mtk_crtc);
+	if (bw == 0 && crtc_idx == 0)
+		total = bw;
 
 	if (comp && mtk_ddp_comp_get_type(comp->id) == MTK_DSI) {
 		if (total > 0) {
@@ -615,6 +623,11 @@ int mtk_disp_set_per_larb_hrt_bw(struct mtk_drm_crtc *mtk_crtc, unsigned int bw)
 					tmp1 = mtk_disp_larb_hrt_bw_MT6989(mtk_crtc, total, bw_base);
 				else
 					tmp1 = bw;
+			}
+		} else {
+			if (priv->data->mmsys_id == MMSYS_MT6989) {
+				DDPMSG("%s, crtc:%d clear channel BW, bw:%u", __func__, crtc_idx, bw);
+				tmp1 = bw;
 			}
 		}
 
@@ -633,6 +646,7 @@ void mtk_drm_pan_disp_set_hrt_bw(struct drm_crtc *crtc, const char *caller)
 	struct mtk_drm_crtc *mtk_crtc;
 	struct drm_display_mode *mode;
 	unsigned int bw = 0;
+	struct mtk_drm_private *priv;
 
 	if (drm_crtc_index(crtc) == 0)
 		dev_crtc = crtc;
@@ -642,7 +656,18 @@ void mtk_drm_pan_disp_set_hrt_bw(struct drm_crtc *crtc, const char *caller)
 	bw = _layering_get_frame_bw(crtc, mode);
 	mtk_crtc_init_hrt_usage(crtc);
 	mtk_disp_set_hrt_bw(mtk_crtc, bw);
-	DDPINFO("%s:pan_disp_set_hrt_bw: %u\n", caller, bw);
+
+	mtk_crtc->usage_ovl_fmt[0] = 4;
+	priv = mtk_crtc->base.dev->dev_private;
+	if (priv && mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_HRT_BY_LARB) &&
+		priv->data->mmsys_id == MMSYS_MT6989) {
+		mtk_disp_set_per_larb_hrt_bw(mtk_crtc, bw);
+		mtk_crtc->qos_ctx->last_larb_hrt_max = bw;
+	} else
+		DDPMSG("%s: invalid priv\n", __func__);
+
+	DDPMSG("%s: crtc:%d pan_disp_set_hrt_bw:%u, last channel:%u\n", caller, drm_crtc_index(crtc), bw,
+		mtk_crtc->qos_ctx->last_larb_hrt_max);
 }
 
 void mtk_disp_hrt_repaint_blocking(const unsigned int hrt_idx)
@@ -850,7 +875,7 @@ void mtk_drm_mmdvfs_init(struct device *dev)
 	}
 
 	/* MMDVFS V2 */
-	DDPINFO("%s, try to use MMDVFS V2\n", __func__);
+	DDPMSG("%s, try to use MMDVFS V2, vdisp_opp:%u, ret:%d\n", __func__, vdisp_opp, ret);
 	mm_freq_request = devm_regulator_get_optional(dev, "mmdvfs-dvfsrc-vcore");
 	if (IS_ERR_OR_NULL(mm_freq_request))
 		DDPPR_ERR("%s, get mmdvfs-dvfsrc-vcore failed\n", __func__);

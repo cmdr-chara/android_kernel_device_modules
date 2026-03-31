@@ -677,6 +677,13 @@ enum mtk_ddp_io_cmd {
 	DSI_INIT_VFP_EARLY_STOP,
 	DSI_DISABLE_VFP_EALRY_STOP,
 	/*Msync 2.0 cmd end*/
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 start */
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+	ESD_RESTORE_BACKLIGHT,
+	MI_DISP_ESD_CHECK_READ,
+	MI_DISP_ESD_CHECK_CMP,
+#endif
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 end */
 	DUAL_TE_INIT,
 	OVL_GET_SOURCE_BPC,
 	DSI_GET_LINE_TIME_NS,
@@ -715,6 +722,10 @@ enum mtk_ddp_io_cmd {
 	BYPASS_SPR2RGB,
 	DSI_GET_PANEL_VBLANK_PERIOD_US,
 	PMQOS_GET_HRT_BW,
+/* P16 code for BUGP16-3142 by p-zhangyundan at 2025/5/20 start */
+	DSI_HDR_GET_STATE,
+	DSI_HDR_SET,
+/* P16 code for BUGP16-3142 by p-zhangyundan at 2025/5/20 end */
 };
 
 enum mtk_ddp_comp_apsrc_crtc_id {

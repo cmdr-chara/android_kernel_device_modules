@@ -26,7 +26,9 @@
 #include "mtk_drm_helper.h"
 #include "platform/mtk_drm_platform.h"
 #include "mtk_disp_pq_helper.h"
-
+#if CONFIG_MI_DISP
+#include "mi_disp/mi_dsi_display.h"
+#endif
 #ifdef CONFIG_LEDS_MTK_MODULE
 #define CONFIG_LEDS_BRIGHTNESS_CHANGED
 #include <linux/leds-mtk.h>
@@ -770,9 +772,9 @@ int mtk_ccorr_cfg_set_ccorr(struct mtk_ddp_comp *comp,
 			return -EFAULT;
 		}
 	}
-
-	if (pq_data->new_persist_property[DISP_PQ_CCORR_SILKY_BRIGHTNESS]) {
-
+	/* P16 code for HQFEAT-94083 by p-zhangyundan at 2025/4/3 start */
+	if (pq_data->new_persist_property[DISP_PQ_CCORR_SILKY_BRIGHTNESS] || pq_data->new_persist_property[DISP_PQ_MI_SOFT_BRIGHTNESS]) {
+	/* P16 code for HQFEAT-94083 by p-zhangyundan at 2025/4/3 end */
 		if ((ccorr_config->silky_bright_flag) == 1 &&
 			ccorr_config->FinalBacklight != 0) {
 			DDPINFO("connector_id:%d, brightness:%d, silky_bright_flag:%d",
@@ -815,9 +817,9 @@ int mtk_drm_ioctl_set_ccorr_impl(struct mtk_ddp_comp *comp, void *data)
 		primary_data->disp_ccorr_without_gamma = CCORR_INVERSE_GAMMA;
 	else
 		primary_data->disp_ccorr_without_gamma = CCORR_BYASS_GAMMA;
-
-	if (pq_data->new_persist_property[DISP_PQ_CCORR_SILKY_BRIGHTNESS]) {
-
+	/* P16 code for HQFEAT-94083 by p-zhangyundan at 2025/4/3 start */
+	if (pq_data->new_persist_property[DISP_PQ_CCORR_SILKY_BRIGHTNESS] || pq_data->new_persist_property[DISP_PQ_MI_SOFT_BRIGHTNESS]) {
+	/* P16 code for HQFEAT-94083 by p-zhangyundan at 2025/4/3 start */
 		ret = mtk_crtc_user_cmd(crtc, comp, SET_CCORR, data);
 
 		if ((ccorr_config->silky_bright_flag) == 1 &&
@@ -900,7 +902,11 @@ int led_brightness_changed_event_to_pq(struct notifier_block *nb, unsigned long 
 	switch (event) {
 	case LED_BRIGHTNESS_CHANGED:
 		trans_level = led_conf->cdev.brightness;
-
+/* P16 code for HQFEAT-94083 by p-zhangyundan at 2025/4/3 start */
+#if CONFIG_MI_DISP
+		mi_disp_feature_event_notify_by_type(mi_get_disp_id("primary"), MI_DISP_EVENT_BACKLIGHT, sizeof(trans_level), trans_level);
+#endif
+/* P16 code for HQFEAT-94083 by p-zhangyundan at 2025/4/3 end */
 		if (led_conf->led_type == LED_TYPE_ATOMIC)
 			break;
 
@@ -909,6 +915,11 @@ int led_brightness_changed_event_to_pq(struct notifier_block *nb, unsigned long 
 			__func__, trans_level, led_conf->cdev.brightness);
 		break;
 	case LED_STATUS_SHUTDOWN:
+/* P16 code for HQFEAT-94083 by p-zhangyundan at 2025/4/3 start */
+#if CONFIG_MI_DISP
+		mi_disp_feature_event_notify_by_type(mi_get_disp_id("primary"), MI_DISP_EVENT_BACKLIGHT, sizeof(trans_level), 0);
+#endif
+/* P16 code for HQFEAT-94083 by p-zhangyundan at 2025/4/3 end */
 		if (led_conf->led_type == LED_TYPE_ATOMIC)
 			break;
 
@@ -1350,6 +1361,7 @@ static void ddp_ccorr_backup(struct mtk_ddp_comp *comp)
 
 	primary_data->backup.REG_CCORR_CFG =
 			readl(comp->regs + DISP_REG_CCORR_CFG);
+	atomic_set(&primary_data->initialed, 1);
 }
 
 static void ddp_ccorr_restore(struct mtk_ddp_comp *comp)
@@ -1357,6 +1369,8 @@ static void ddp_ccorr_restore(struct mtk_ddp_comp *comp)
 	struct mtk_disp_ccorr *ccorr_data = comp_to_ccorr(comp);
 	struct mtk_disp_ccorr_primary *primary_data = ccorr_data->primary_data;
 
+	if (atomic_read(&primary_data->initialed) != 1)
+		return;
 	writel(primary_data->backup.REG_CCORR_CFG,
 			comp->regs + DISP_REG_CCORR_CFG);
 }
@@ -1426,6 +1440,7 @@ static void mtk_ccorr_primary_data_init(struct mtk_ddp_comp *comp)
 	spin_lock_init(&primary_data->ccorr_clock_lock);
 	spin_lock_init(&primary_data->pq_bl_change_lock);
 	mutex_init(&primary_data->ccorr_global_lock);
+	atomic_set(&primary_data->initialed, 0);
 }
 
 static int mtk_ccorr_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,

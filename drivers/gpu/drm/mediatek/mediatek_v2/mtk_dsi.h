@@ -24,6 +24,11 @@
 #include "mtk-cmdq-ext.h"
 #endif
 
+#ifdef CONFIG_MI_DISP
+#include "mi_disp/mi_dsi_panel.h"
+#include "mi_disp/mi_dsi_panel_count.h"
+#endif
+
 struct t_condition_wq {
 	wait_queue_head_t wq;
 	atomic_t condition;
@@ -58,6 +63,7 @@ struct mtk_dsi_driver_data {
 	const u32 sram_unit;
 	const u32 urgent_lo_fifo_us;
 	const u32 urgent_hi_fifo_us;
+	const u32 output_valid_fifo_us;
 	bool dsi_buffer;
 	bool smi_dbg_disable;
 	bool require_phy_reset; /* reset phy before trigger DSI */
@@ -147,11 +153,33 @@ struct mtk_dsi {
 	struct mtk_drm_esd_ctx *esd_ctx;
 	unsigned int cnt;
 	unsigned int skip_vblank;
+/* P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 start */
+#if CONFIG_MI_DISP
+	bool fod_backlight_flag;
+	bool fod_hbm_flag;
+	bool normal_hbm_flag;
+	bool dc_flag;
+	uint32_t dc_status;
+	struct mutex dsi_lock;
+	struct mi_dsi_panel_cfg mi_cfg;
+	int panel_event;
+	struct completion bl_wait_completion;
+	struct completion aod_wait_completion;
+	struct delayed_work gir_off_delayed_work;
+	const char * display_type;
+	bool need_fod_animal_in_normal;
+#endif
+/* P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 end */
 	unsigned int force_resync_after_idle;
 	unsigned int mode_switch_delay;
 	bool set_partial_update;
 	unsigned int roi_y_offset;
 	unsigned int roi_height;
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 start */
+#ifdef CONFIG_MI_DISP_FOD_SYNC
+	struct mi_layer_state mi_layer_state;
+#endif
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 end */
 };
 
 s32 mtk_dsi_poll_for_idle(struct mtk_dsi *dsi, struct cmdq_pkt *handle);

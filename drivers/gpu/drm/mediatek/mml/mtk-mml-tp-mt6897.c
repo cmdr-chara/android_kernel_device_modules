@@ -58,6 +58,9 @@ module_param(mml_path_mode, int, 0644);
 int mml_racing;
 module_param(mml_racing, int, 0644);
 
+int mml_racing_debug;
+module_param(mml_racing_debug, int, 0644);
+
 int mml_dl;
 module_param(mml_dl, int, 0644);
 
@@ -1239,10 +1242,25 @@ decouple:
 }
 
 static enum mml_mode tp_query_mode_racing(struct mml_dev *mml, struct mml_frame_info *info,
-	u32 *reason)
+	u32 *reason, u32 panel_width, u32 panel_height)
 {
 	struct mml_topology_cache *tp;
 	u32 pixel;
+	u32 srcw, srch;
+	u32 cropw = info->dest[0].crop.r.width;
+	u32 croph = info->dest[0].crop.r.height;
+	const u32 destw = info->dest[0].data.width;
+	const u32 desth = info->dest[0].data.height;
+	const enum mml_orientation rotate = info->dest[0].rotate;
+
+	srcw = round_up(info->dest[0].crop.r.left + info->dest[0].crop.r.width, 32) -
+		round_down(info->dest[0].crop.r.left, 32);
+	srch = round_up(info->dest[0].crop.r.top + info->dest[0].crop.r.height, 16) -
+		round_down(info->dest[0].crop.r.top, 16);
+
+	if (unlikely(mml_racing_debug))
+		mml_log("[topology]Racing src (%u x %u), crop (%u x %u), dest (%u x %u), panel (%u x %u)",
+			srcw, srch, cropw, croph, destw, desth, panel_width, panel_height);
 
 	if (unlikely(mml_racing)) {
 		if (mml_racing == 2)
@@ -1281,9 +1299,11 @@ static enum mml_mode tp_query_mode_racing(struct mml_dev *mml, struct mml_frame_
 		goto decouple;
 	}
 
-	pixel = max(info->src.width * info->src.height,
-		info->dest[0].data.width * info->dest[0].data.height);
+	/* rotate source */
+	if (rotate == MML_ROT_90 || rotate == MML_ROT_270)
+		swap(srcw, srch);
 
+	pixel = max(srcw, destw) * max(srch, desth);
 	if (info->act_time) {
 		u32 i, dc_opp, ir_freq, ir_opp;
 		u32 pipe_pixel = pixel / 2;
@@ -1296,8 +1316,8 @@ static enum mml_mode tp_query_mode_racing(struct mml_dev *mml, struct mml_frame_
 		if (!opp_pixel_table[0]) {
 			for (i = 0; i < ARRAY_SIZE(opp_pixel_table); i++) {
 				opp_pixel_table[i] = tp->opp_speeds[i] * MML_DC_ACT_DUR;
-				mml_log("[topology]Racing pixel OPP %u: %u",
-					i, opp_pixel_table[i]);
+				mml_log("[topology]Racing pixel OPP %u: %u (opp_speeds: %u)",
+					i, opp_pixel_table[i], tp->opp_speeds[i]);
 			}
 		}
 		for (i = 0; i < tp->opp_cnt; i++)
@@ -1310,10 +1330,25 @@ static enum mml_mode tp_query_mode_racing(struct mml_dev *mml, struct mml_frame_
 		}
 
 		ir_freq = pipe_pixel * 1000 / info->act_time;
+		/* add overhead to avoid underrun */
+		if (MML_FMT_COMPRESS(info->src.format) &&
+			((info->dest[0].crop.r.width & 0x1f) || (info->dest[0].crop.r.height & 0xf))) {
+			/* for compress format afbc and hyfbc read block overhead */
+			ir_freq = (ir_freq * 38) >> 5;
+		} else {
+			ir_freq = ir_freq * 11 / 10;
+		}
+		if (panel_width > destw)
+			ir_freq = ir_freq * panel_width / destw;
+
 		for (i = 0; i < tp->opp_cnt; i++)
 			if (ir_freq < tp->opp_speeds[i])
 				break;
 		ir_opp = min_t(u32, i, ARRAY_SIZE(opp_pixel_table) - 1);
+
+		if (unlikely(mml_racing_debug))
+			mml_log("[topology]Racing pipe_pixel %u, act_time %u, ir_freq %u, ir_opp %u, dc_opp %u",
+				pipe_pixel, info->act_time, ir_freq, ir_opp, dc_opp);
 
 		/* simple check if ir mode need higher opp */
 		if (ir_opp > dc_opp && ir_opp > 1) {
@@ -1356,7 +1391,7 @@ decouple:
 }
 
 static enum mml_mode tp_query_mode(struct mml_dev *mml, struct mml_frame_info *info,
-	u32 *reason)
+	u32 *reason, u32 panel_width, u32 panel_height)
 {
 	mml_msg("[topology]%s info mode %d alpha %d, mml_path_mode %d, mml_racing %d, mml_dl %d, rot %d",
 		__func__, info->mode, info->alpha, mml_path_mode, mml_racing, mml_dl, info->dest[0].rotate);
@@ -1411,7 +1446,7 @@ static enum mml_mode tp_query_mode(struct mml_dev *mml, struct mml_frame_info *i
 
 	/* rotate go to racing (inline rotate) */
 	if (info->dest[0].rotate == MML_ROT_90 || info->dest[0].rotate == MML_ROT_270)
-		return tp_query_mode_racing(mml, info, reason);
+		return tp_query_mode_racing(mml, info, reason, panel_width, panel_height);
 
 	return MML_MODE_MML_DECOUPLE;
 
@@ -1446,7 +1481,7 @@ static const struct mml_topology_path *tp_get_dl_path(struct mml_topology_cache 
 }
 
 static const struct mml_topology_ops tp_ops_mt6897 = {
-	.query_mode = tp_query_mode,
+	.query_mode2 = tp_query_mode,
 	.init_cache = tp_init_cache,
 	.select = tp_select,
 	.get_racing_clt = get_racing_clt,

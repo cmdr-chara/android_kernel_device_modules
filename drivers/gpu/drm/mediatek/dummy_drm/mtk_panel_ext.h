@@ -296,6 +296,12 @@ struct dynamic_fps_params {
 	unsigned int switch_en;
 	unsigned int vact_timing_fps;
 	unsigned int data_rate;
+/* P16 code for HQFEAT-89595 by zhangyundan at 2025/4/3 start */
+	unsigned int cmds_counts_switch_fps;
+	unsigned int short_dfps_cmds_counts;
+	unsigned int short_dfps_cmds_start_index;
+	unsigned int long_dfps_cmds_counts;
+/* P16 code for HQFEAT-89595 by zhangyundan at 2025/4/3 end */
 	struct dfps_switch_cmd dfps_cmd_table[MAX_DYN_CMD_NUM];
 };
 
@@ -425,6 +431,14 @@ struct mtk_panel_params {
 
 	struct mtk_panel_cm_params cm_params;
 	struct mtk_panel_spr_params spr_params;
+/* P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 start */
+#ifdef CONFIG_MI_DISP_FOD_SYNC
+	/*block backlight until aod disapper*/
+	int bl_sync_enable;
+	/*delay to set doze_brightness*/
+	int aod_delay_enable;
+#endif
+/* P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 end */
 };
 
 struct mtk_panel_ext {

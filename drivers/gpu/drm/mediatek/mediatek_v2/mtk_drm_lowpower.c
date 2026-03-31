@@ -1172,14 +1172,18 @@ void mtk_drm_idlemgr_kick(const char *source, struct drm_crtc *crtc,
 
 	/* get lock to protect idlemgr_last_kick_time and is_idle */
 	if (need_lock)
-		DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
+		DDP_MUTEX_LOCK_CONDITION(&mtk_crtc->lock, __func__, __LINE__, false);
 
 	if (idlemgr_ctx->is_idle) {
 		DDPINFO("[LP] kick idle from [%s] time[%llu]\n", source,
 			local_clock() - idlemgr_ctx->enter_idle_ts);
 		if (mtk_crtc->esd_ctx)
 			atomic_set(&mtk_crtc->esd_ctx->target_time, 0);
+		if (mtk_crtc->enabled && need_lock)
+			mtk_vidle_user_power_keep(DISP_VIDLE_USER_HSIDLE);
 		mtk_drm_idlemgr_leave_idle_nolock(crtc);
+		if (mtk_crtc->enabled && need_lock)
+			mtk_vidle_user_power_release(DISP_VIDLE_USER_HSIDLE);
 		idlemgr_ctx->is_idle = 0;
 		/* wake up idlemgr process to monitor next idle state */
 		wake_up_interruptible(&idlemgr->idlemgr_wq);
@@ -1189,7 +1193,7 @@ void mtk_drm_idlemgr_kick(const char *source, struct drm_crtc *crtc,
 	idlemgr_ctx->idlemgr_last_kick_time = sched_clock();
 
 	if (need_lock)
-		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+		DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__, __LINE__, false);
 }
 
 unsigned int mtk_drm_set_idlemgr(struct drm_crtc *crtc, unsigned int flag,
@@ -1477,10 +1481,10 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 
 		msleep_interruptible(idlemgr_ctx->idle_check_interval);
 
-		DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
+		DDP_MUTEX_LOCK_CONDITION(&mtk_crtc->lock, __func__, __LINE__, false);
 
 		if (!mtk_crtc->enabled) {
-			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+			DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__, __LINE__, false);
 			mtk_crtc_wait_status(crtc, 1, MAX_SCHEDULE_TIMEOUT);
 			continue;
 		}
@@ -1488,15 +1492,15 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 		if (mtk_crtc_is_frame_trigger_mode(crtc) &&
 				atomic_read(&priv->crtc_rel_present[crtc_id]) <
 				atomic_read(&priv->crtc_present[crtc_id])) {
-			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+			DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__, __LINE__, false);
 			continue;
 		}
 
 		if (crtc->state) {
 			mtk_state = to_mtk_crtc_state(crtc->state);
 			if (mtk_state->prop_val[CRTC_PROP_DOZE_ACTIVE]) {
-				DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__,
-						__LINE__);
+				DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__,
+						__LINE__, false);
 				continue;
 			}
 			/* do not enter VDO idle when rsz ratio >= 2.5;
@@ -1508,8 +1512,8 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 				((mtk_drm_idlemgr_get_rsz_ratio(mtk_state) >=
 				MAX_ENTER_IDLE_RSZ_RATIO) ||
 				mtk_planes_is_yuv_fmt(crtc))) {
-				DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__,
-						__LINE__);
+				DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__,
+						__LINE__, false);
 				continue;
 			}
 		}
@@ -1518,15 +1522,17 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 			|| mtk_crtc_is_dc_mode(crtc)
 			|| mtk_crtc->sec_on
 			|| !mtk_crtc->already_first_config
-			|| !(mtk_crtc->cur_usage == DISP_ENABLE)) {
-			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+			|| !(priv->usage[crtc_id] == DISP_ENABLE)) {
+			DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__,
+					__LINE__, false);
 			continue;
 		}
 
 		t_idle = local_clock() - idlemgr_ctx->idlemgr_last_kick_time;
 		if (t_idle < idlemgr_ctx->idle_check_interval * 1000 * 1000) {
 			/* kicked in idle_check_interval msec, it's not idle */
-			DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+			DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__,
+					__LINE__, false);
 			continue;
 		}
 		/* double check if dynamic switch on/off */
@@ -1537,7 +1543,9 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 			/* enter idle state */
 			if (!vblank || atomic_read(&vblank->refcount) == 0) {
 				DDPINFO("[LP] enter idle\n");
+				mtk_vidle_user_power_keep(DISP_VIDLE_USER_HSIDLE);
 				mtk_drm_idlemgr_enter_idle_nolock(crtc);
+				mtk_vidle_user_power_release(DISP_VIDLE_USER_HSIDLE);
 				idlemgr_ctx->is_idle = 1;
 				idlemgr_ctx->enter_idle_ts = local_clock();
 			} else {
@@ -1546,7 +1554,7 @@ static int mtk_drm_idlemgr_monitor_thread(void *data)
 			}
 		}
 
-		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+		DDP_MUTEX_UNLOCK_CONDITION(&mtk_crtc->lock, __func__, __LINE__, false);
 
 		wait_event_interruptible(idlemgr->idlemgr_wq,
 					 !idlemgr_ctx->is_idle);
@@ -2066,10 +2074,15 @@ static void mtk_drm_idlemgr_enable_crtc(struct drm_crtc *crtc)
 	/* 9. conect addon module and config
 	 *    skip mml addon connect if kick idle by atomic commit
 	 */
-	if (crtc_state->lye_state.mml_ir_lye || crtc_state->lye_state.mml_dl_lye)
+	if (crtc_state->lye_state.mml_ir_lye || crtc_state->lye_state.mml_dl_lye) {
 		mtk_crtc_addon_connector_connect(crtc, NULL);
-	else
-		mtk_crtc_connect_addon_module(crtc);
+	} else if ((crtc_state->prop_val[CRTC_PROP_OUTPUT_ENABLE] == 1) && (crtc_id == 0)) {
+		DDPINFO("%s, is cwb, skip it\n", __func__);
+		mtk_crtc_connect_addon_module(crtc, true);
+	} else {
+		DDPINFO("%s, addon module\n", __func__);
+		mtk_crtc_connect_addon_module(crtc, false);
+	}
 
 	mtk_drm_idlemgr_perf_detail_check(perf_detail, crtc,
 				"update_hrt", 15, perf_string, true);
@@ -2628,7 +2641,7 @@ void mtk_drm_idlemgr_wb_leave(struct mtk_drm_crtc *mtk_crtc, struct cmdq_pkt *cm
 		 BIT(17), BIT(17));
 	mtk_crtc_all_layer_off(mtk_crtc, cmdq_handle);
 	_mtk_crtc_atmoic_addon_module_connect(crtc, mtk_crtc->ddp_mode,
-				&crtc_state->lye_state, cmdq_handle);
+				&crtc_state->lye_state, cmdq_handle, false);
 	__mtk_crtc_restore_plane_setting(mtk_crtc, cmdq_handle);
 	GCE_FI;
 

@@ -103,11 +103,18 @@ struct mtk_drm_lyeblob_ids {
 	int32_t ref_cnt_mask;
 	int32_t free_cnt_mask;
 	int32_t lye_plane_blob_id[MAX_CRTC][OVL_LAYER_NR];
+	int32_t balance_compensate[MAX_CRTC];
 	int fbt_gles_head;
 	int fbt_gles_tail;
 	int fbt_layer_id;
 	bool hrt_valid;
 	struct list_head list;
+};
+
+enum disp_hrt_usage {
+	DISP_DISABLE,
+	DISP_ENABLE,
+	DISP_OPENING,
 };
 
 enum MTK_CONNECTOR_PROP {
@@ -157,7 +164,6 @@ struct mtk_drm_private {
 	unsigned int req_hrt[MAX_CRTC];
 	unsigned int num_pipes;
 
-	struct mutex res_usage_lock;
 	unsigned int session_id[MAX_SESSION_COUNT];
 	unsigned int num_sessions;
 	enum MTK_DRM_SESSION_MODE session_mode;
@@ -190,10 +196,6 @@ struct mtk_drm_private {
 		struct work_struct work;
 		struct mutex lock;
 	} commit;
-	/* record corresponding crtc still hold mutex */
-	/* can't hold crtc mutex and need release commit lock avoid deadlock */
-	atomic_t need_wound_crtc[MAX_CRTC];
-	wait_queue_head_t wound_wq[MAX_CRTC];
 
 	struct drm_atomic_state *suspend_state;
 

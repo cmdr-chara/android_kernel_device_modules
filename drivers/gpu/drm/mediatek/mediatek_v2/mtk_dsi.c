@@ -53,9 +53,32 @@
 #include "mtk_drm_trace.h"
 #include "mtk_disp_gamma.h"
 
+/* P16 code for HQFEAT-94432 by p-liaoxianguo at 2025/3/27 start */
+#ifdef CONFIG_MI_DISP
+#include "mi_disp/mi_disp_feature.h"
+#include "mi_disp/mi_dsi_display.h"
+#include "mi_disp/mi_panel_ext.h"
+#endif
+/* P16 code for HQFEAT-94432 by p-liaoxianguo at 2025/3/27 end */
+
 /* ************ Panel Master ********** */
 #include "mtk_fbconfig_kdebug.h"
 /* ********* end Panel Master *********** */
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 start */
+#include <uapi/drm/mi_disp.h>
+#include "mi_disp/mi_disp_feature.h"
+#include "mi_disp/mi_dsi_panel.h"
+#include "mi_disp/mi_dsi_display.h"
+#include "mi_disp/mi_panel_ext.h"
+#include "mi_disp/mi_disp_input_handler.h"
+#include "mi_disp/mi_disp_lhbm.h"
+#include "mi_disp/mi_disp_print.h"
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 end */
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+#include "mi_disp/mi_disp_event.h"
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 //#define DSI_SELF_PATTERN
 #define DSI_START 0x00
 #define SLEEPOUT_START BIT(2)
@@ -357,6 +380,12 @@
 
 struct phy;
 struct mtk_dsi;
+
+/* P16 code for HQFEAT-94432 by p-liaoxianguo at 2025/3/27 start */
+#ifdef CONFIG_MI_DISP_NOTIFIER
+static int blank = 0;
+#endif
+/* P16 code for HQFEAT-94432 by p-liaoxianguo at 2025/3/27 end */
 
 #define DSI_DCS_SHORT_PACKET_ID_0 0x05
 #define DSI_DCS_SHORT_PACKET_ID_1 0x15
@@ -1931,7 +1960,7 @@ static void mtk_dsi_tx_buf_rw(struct mtk_dsi *dsi)
 	u32 fill_rate;
 	u32 sodi_hi, sodi_lo;
 	u32 sram_unit, buffer_unit;
-	u32 urgent_lo_fifo_us, urgent_hi_fifo_us;
+	u32 urgent_lo_fifo_us, urgent_hi_fifo_us, output_valid_us;
 	struct mtk_panel_ext *ext = mtk_dsi_get_panel_ext(&dsi->ddp_comp);
 	struct mtk_drm_crtc *mtk_crtc =	dsi->is_slave ?
 			dsi->master_dsi->ddp_comp.mtk_crtc : dsi->ddp_comp.mtk_crtc;
@@ -1988,6 +2017,8 @@ static void mtk_dsi_tx_buf_rw(struct mtk_dsi *dsi)
 				dsi->driver_data->urgent_lo_fifo_us : 11;
 	urgent_hi_fifo_us = dsi->driver_data->urgent_hi_fifo_us ?
 				dsi->driver_data->urgent_hi_fifo_us : 12;
+	output_valid_us = dsi->driver_data->output_valid_fifo_us ?
+				dsi->driver_data->output_valid_fifo_us : 25;
 
 	if (!IS_ERR_OR_NULL(priv) && !IS_ERR_OR_NULL(priv->data)
 		&& priv->data->mmsys_id == MMSYS_MT6989) {
@@ -2012,9 +2043,13 @@ static void mtk_dsi_tx_buf_rw(struct mtk_dsi *dsi)
 						0);
 
 		if (dsi->ext->params->is_cphy)
-			tmp = 25 * dsi->data_rate * 2 * dsi->lanes / 7 / buffer_unit;
+			tmp = output_valid_us * dsi->data_rate * 2 * dsi->lanes / 7 / buffer_unit;
 		else
-			tmp = 25 * dsi->data_rate * dsi->lanes / 8 / buffer_unit;
+			tmp = output_valid_us * dsi->data_rate * dsi->lanes / 8 / buffer_unit;
+
+		/* check output valid threshold exceed FIFO size if FIFO size is pre-defined  */
+		if (buf_con)
+			tmp = (tmp >= (buf_con - 1)) ? (buf_con - 1) : tmp;
 	}
 
 	rw_times = mtk_dsi_calculate_rw_times(dsi, width, height);
@@ -2617,49 +2652,58 @@ void clear_dsi_underrun_event(void)
 void mtk_dsi_set_backlight(struct mtk_dsi *dsi)
 {
 	struct mtk_connector_state *mtk_conn_state = NULL;
-	unsigned int index;
+	struct mtk_drm_crtc *mtk_crtc = dsi->ddp_comp.mtk_crtc;
+	struct mtk_crtc_state *mtk_crtc_state = NULL;
+	unsigned int con_index, crtc_index;
 	static unsigned long long csc_bl[MAX_CONNECTOR] = {0};
 	static unsigned long long csc_nits[MAX_CONNECTOR] = {0};
+	static unsigned int gamma_gain[MAX_CRTC][GAMMA_GAIN_MAX] = {0};
+	bool set_bl, set_gamma;
 
 	if (dsi == NULL) {
 		DDPINFO("%s, dsi is null\n", __func__);
 		return;
 	}
-
 	mtk_conn_state = to_mtk_connector_state(dsi->conn.state);
 	if (mtk_conn_state == NULL) {
 		DDPINFO("%s, mtk_conn_state is null\n", __func__);
 		return;
 	}
+	if (mtk_crtc == NULL) {
+		DDPPR_ERR("%s[%d]:mtk_crtc is NULL\n", __func__, __LINE__);
+		return;
+	}
+	mtk_crtc_state = to_mtk_crtc_state(mtk_crtc->base.state);
+	if (mtk_crtc_state == NULL) {
+		DDPPR_ERR("%s[%d]:mtk_crtc_state is NULL\n", __func__, __LINE__);
+		return;
+	}
 
-	index = dsi->conn.index;
-	if (csc_bl[index] != mtk_conn_state->prop_val[index][CONNECTOR_PROP_CSC_BL]) {
+	con_index = dsi->conn.index;
+	crtc_index = drm_crtc_index(&mtk_crtc->base);
+	set_bl = csc_bl[con_index] != mtk_conn_state->prop_val[con_index][CONNECTOR_PROP_CSC_BL];
+	set_gamma = !!memcmp(gamma_gain[crtc_index], mtk_crtc_state->bl_sync_gamma_gain, sizeof(gamma_gain[0]));
+	/* atomic set bl */
+	if (set_bl || set_gamma) {
 		struct mtk_ddp_comp *comp;
-		struct mtk_drm_crtc *mtk_crtc = dsi->ddp_comp.mtk_crtc;
-		struct mtk_crtc_state *mtk_crtc_state = NULL;
 
-		if (mtk_crtc == NULL) {
-			DDPPR_ERR("%s[%d]:mtk_crtc is NULL\n", __func__, __LINE__);
-			return;
-		}
-
-		mtk_crtc_state = to_mtk_crtc_state(mtk_crtc->base.state);
-		if (mtk_crtc_state == NULL) {
-			DDPPR_ERR("%s[%d]:mtk_crtc_state is NULL\n", __func__, __LINE__);
-			return;
-		}
-
-		csc_bl[index] = mtk_conn_state->prop_val[index][CONNECTOR_PROP_CSC_BL];
-		csc_nits[index] = mtk_conn_state->prop_val[index][CONNECTOR_PROP_PANEL_NITS];
-		DDPINFO("%s, csc_bl[%d] = %llu nits %llu\n", __func__, index, csc_bl[index], csc_nits[index]);
-		mtk_drm_setbacklight(&mtk_crtc->base, csc_bl[index], 0, (0X1<<SET_BACKLIGHT_LEVEL), 0);
+		DDPINFO("%s, con/crtc[%d/%d]: %llu,%llu,%u -> %llu,%llu,%u\n", __func__, con_index, crtc_index,
+			csc_nits[con_index], csc_bl[con_index], gamma_gain[crtc_index][0],
+			mtk_conn_state->prop_val[con_index][CONNECTOR_PROP_PANEL_NITS],
+			mtk_conn_state->prop_val[con_index][CONNECTOR_PROP_CSC_BL],
+			mtk_crtc_state->bl_sync_gamma_gain[0]);
+		csc_bl[con_index] = mtk_conn_state->prop_val[con_index][CONNECTOR_PROP_CSC_BL];
+		csc_nits[con_index] = mtk_conn_state->prop_val[con_index][CONNECTOR_PROP_PANEL_NITS];
+		memcpy(gamma_gain[crtc_index], mtk_crtc_state->bl_sync_gamma_gain, sizeof(gamma_gain[0]));
+		if (set_bl)
+			mtk_drm_setbacklight(&mtk_crtc->base, csc_bl[con_index], 0, (0X1<<SET_BACKLIGHT_LEVEL), 0);
 
 		comp = mtk_ddp_comp_sel_in_cur_crtc_path(mtk_crtc, MTK_DISP_AAL, 0);
 		if (comp)
-			disp_aal_notify_backlight_changed(comp, csc_bl[index], csc_nits[index], -1, 0);
+			disp_aal_notify_backlight_changed(comp, csc_bl[con_index], csc_nits[con_index], -1, 0);
 
 		comp = mtk_ddp_comp_sel_in_cur_crtc_path(mtk_crtc, MTK_DISP_GAMMA, 0);
-		if (comp)
+		if (comp && set_gamma)
 			mtk_gamma_set_silky_brightness_gain(comp,
 				mtk_crtc_state->cmdq_handle,
 				mtk_crtc_state->bl_sync_gamma_gain, /* index 0, 1, 2 are gamma gain */
@@ -2738,7 +2782,11 @@ irqreturn_t mtk_dsi_irq_status(int irq, void *dev_id)
 	unsigned int doze_wait = 0, index = 0;
 	struct mtk_drm_private *priv = NULL;
 	struct drm_crtc *crtc = NULL;
-
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+	struct mi_event_info mi_event = {0};
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 	if (IS_ERR_OR_NULL(dsi))
 		return IRQ_NONE;
 
@@ -2799,7 +2847,12 @@ irqreturn_t mtk_dsi_irq_status(int irq, void *dev_id)
 			unsigned long long aee_now_ts = sched_clock();
 			int trigger_aee = 0;
 			int en = 0;
-
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+			mi_event.event_type = MI_EVENT_PANEL_UNDERRUN;
+			mi_disp_mievent_int(MI_DISP_PRIMARY, &mi_event);
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 			++underrun_cnt;
 
 			if (mtk_crtc->last_aee_trigger_ts == 0 ||
@@ -2822,11 +2875,11 @@ irqreturn_t mtk_dsi_irq_status(int irq, void *dev_id)
 #endif
 				mtk_dprec_snapshot();
 				mtk_vidle_dpc_analysis(false);
-				if (priv->data->mmsys_id == MMSYS_MT6878) {
+				//if (priv->data->mmsys_id == MMSYS_MT6878) {
 					mtk_drm_crtc_analysis(dsi->encoder.crtc);
 					mtk_drm_crtc_dump(dsi->encoder.crtc);
-				} else
-					mtk_drm_crtc_mini_analysis(dsi->encoder.crtc);
+				//} else
+					//mtk_drm_crtc_mini_analysis(dsi->encoder.crtc);
 				dsi_underrun_trigger = 0;
 				mtk_crtc->last_aee_trigger_ts = aee_now_ts;
 			}
@@ -3010,6 +3063,16 @@ irqreturn_t mtk_dsi_irq_status(int irq, void *dev_id)
 		}
 
 		if (status & FRAME_DONE_INT_FLAG) {
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 start */
+#ifdef CONFIG_MI_DISP_FOD_SYNC
+			if (panel_ext && panel_ext->params->aod_delay_enable) {
+				if (!dsi->mi_cfg.aod_wait_frame) {
+					complete(&dsi->aod_wait_completion);
+					dsi->mi_cfg.aod_wait_frame = true;
+				}
+			}
+#endif
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 end */
 			if (mtk_crtc && mtk_crtc->esd_ctx) {
 				if (!mtk_dsi_is_cmd_mode(&dsi->ddp_comp) &&
 					dsi->ddp_comp.id == DDP_COMPONENT_DSI0) {
@@ -3243,7 +3306,7 @@ static void mtk_dsi_exit_ulps(struct mtk_dsi *dsi, bool async)
 
 static int mtk_dsi_stop_vdo_mode(struct mtk_dsi *dsi, void *handle);
 
-static void mipi_dsi_dcs_write_gce2(struct mtk_dsi *dsi, struct cmdq_pkt *dummy,
+void mipi_dsi_dcs_write_gce2(struct mtk_dsi *dsi, struct cmdq_pkt *dummy,
 					  const void *data, size_t len);
 
 static void mtk_dsi_cmdq_pack_gce(struct mtk_dsi *dsi, struct cmdq_pkt *handle,
@@ -3272,9 +3335,27 @@ static void mtk_output_en_doze_switch(struct mtk_dsi *dsi)
 	if (doze_enabled && panel_funcs->doze_enable_start)
 		panel_funcs->doze_enable_start(dsi->panel, dsi,
 			mipi_dsi_dcs_write_gce2, NULL);
-	else if (!doze_enabled && panel_funcs->doze_disable)
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 start */
+	else if (!doze_enabled && panel_funcs->doze_disable) {
 		panel_funcs->doze_disable(dsi->panel, dsi,
 			mipi_dsi_dcs_write_gce2, NULL);
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+		mi_disp_err_flag_esd_check_switch(&dsi->ddp_comp.mtk_crtc->base, true);
+		mtk_disp_esd_check_switch(&dsi->ddp_comp.mtk_crtc->base, true);
+#endif
+	}
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 end */
+/* P16 code for HQFEAT-94432 by p-liaoxianguo at 2025/3/27 start */
+#ifdef CONFIG_MI_DISP_NOTIFIER
+	if (doze_enabled) {
+		blank = MI_DISP_DPMS_LP1;
+		g_notify_data.data = &blank;
+		g_notify_data.disp_id = MI_DISPLAY_PRIMARY;
+		mi_disp_notifier_call_chain(MI_DISP_DPMS_EVENT, &g_notify_data);
+		mi_disp_feature_event_notify_by_type(mi_get_disp_id("primary"), MI_DISP_EVENT_POWER, sizeof(blank), blank);
+	}
+#endif
+/* P16 code for HQFEAT-94432 by p-liaoxianguo at 2025/3/27 end */
 
 	/* Display mode switch */
 	if (panel_funcs->doze_get_mode_flags) {
@@ -3329,9 +3410,22 @@ static void mtk_output_en_doze_switch(struct mtk_dsi *dsi)
 		}
 	}
 
-	if (doze_enabled && panel_funcs->doze_enable)
+	if (doze_enabled && panel_funcs->doze_enable) {
 		panel_funcs->doze_enable(dsi->panel, dsi,
 			mipi_dsi_dcs_write_gce2, NULL);
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 start */
+#ifdef CONFIG_MI_DISP_FOD_SYNC
+		if (dsi->ext && dsi->ext->params &&
+			dsi->ext->params->aod_delay_enable) {
+			dsi->mi_cfg.aod_wait_frame = false;
+			reinit_completion(&dsi->aod_wait_completion);
+		}
+		if (dsi->ext && dsi->ext->params &&
+				dsi->ext->params->bl_sync_enable)
+			dsi->mi_cfg.bl_enable = false;
+#endif
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 end */
+	}
 
 	if (doze_enabled && panel_funcs->doze_area)
 		panel_funcs->doze_area(dsi->panel, dsi,
@@ -3610,9 +3704,8 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 				(unsigned long)crtc, crtc_idx);
 
 	if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_SPHRT)) {
-		crtc_idx = drm_crtc_index(crtc);
-		if (mtk_crtc->cur_usage == DISP_OPENING) {
-			DDPINFO("%s %d skip due to still opening\n", __func__, crtc_idx);
+		if (priv && crtc_idx < MAX_CRTC && priv->usage[crtc_idx] == DISP_OPENING) {
+			DDPMSG("%s %d skip due to still opening\n", __func__, crtc_idx);
 			CRTC_MMP_EVENT_END(crtc_idx, dsi_enable,
 				(unsigned long)dsi->output_en, 1);
 			return;
@@ -3620,12 +3713,31 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 	}
 
 	if (dsi->output_en) {
+/* P16 code for HQFEAT-94432 by p-liaoxianguo at 2025/3/27 start */
+#ifdef CONFIG_MI_DISP_NOTIFIER
+		if (!new_doze_state) {
+			blank = MI_DISP_DPMS_ON;
+			g_notify_data.data = &blank;
+			g_notify_data.disp_id = MI_DISPLAY_PRIMARY;
+			mi_disp_notifier_call_chain(MI_DISP_DPMS_EVENT, &g_notify_data);
+			mi_disp_feature_event_notify_by_type(mi_get_disp_id("primary"),
+				MI_DISP_EVENT_POWER, sizeof(blank), blank);
+		}
+#endif
+/* P16 code for HQFEAT-94432 by p-liaoxianguo at 2025/3/27 end */
 		if (mtk_dsi_doze_status_change(dsi)) {
 			mtk_dsi_pre_cmd(dsi, crtc);
 			mtk_output_en_doze_switch(dsi);
 			mtk_dsi_post_cmd(dsi, crtc);
 		} else
 			DDPINFO("dsi is initialized\n");
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+		if (!new_doze_state) {
+			dsi->mi_cfg.timestamp_panelon = get_jiffies_64();
+		}
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 		CRTC_MMP_EVENT_END(crtc_idx, dsi_enable,
 			(unsigned long)dsi->output_en, 2);
 		return;
@@ -3640,7 +3752,12 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 			return;
 		}
 	}
-
+/* P16 code for HQFEAT-89778 by p-zhangyundan at 2025/3/26 start */
+	if (dsi->panel && dsi->ext->funcs->panel_poweron) {
+		dsi->ext->funcs->panel_poweron(dsi->panel);
+		DDPINFO("lcm power up before dsi\n");
+	}
+/* P16 code for HQFEAT-89778 by p-zhangyundan at 2025/3/26 end */
 	ret = mtk_preconfig_dsi_enable(dsi);
 	if (ret < 0) {
 		dev_err(dsi->dev, "config dsi fail: %d", ret);
@@ -3658,6 +3775,11 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 				(unsigned long)dsi->output_en, 5);
 			return;
 		}
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 start */
+#ifdef CONFIG_MI_DISP
+		mi_dsi_display_wakeup_pending_doze_work(dsi);
+#endif
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 end */
 		DDP_PROFILE("[PROFILE] %s panel init end\n", __func__);
 		mode_chg_index = mtk_crtc->mode_change_index;
 
@@ -3681,9 +3803,20 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 				ext->funcs->doze_enable_start(dsi->panel, dsi,
 					mipi_dsi_dcs_write_gce2, NULL);
 			if (ext && ext->funcs
-				&& ext->funcs->doze_enable)
+				&& ext->funcs->doze_enable) {
 				ext->funcs->doze_enable(dsi->panel, dsi,
 					mipi_dsi_dcs_write_gce2, NULL);
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 start */
+#ifdef CONFIG_MI_DISP_FOD_SYNC
+				if (ext && ext->params && ext->params->aod_delay_enable) {
+					dsi->mi_cfg.aod_wait_frame = false;
+					reinit_completion(&dsi->aod_wait_completion);
+				}
+				if (ext && ext->params && ext->params->bl_sync_enable)
+					dsi->mi_cfg.bl_enable = false;
+#endif
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 end */
+			}
 			if (ext && ext->funcs
 				&& ext->funcs->doze_area)
 				ext->funcs->doze_area(dsi->panel, dsi,
@@ -3745,7 +3878,12 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 			DDPPR_ERR("failed to enable the panel\n");
 			goto err_dsi_power_off;
 		}
-
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 start */
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+		if (!new_doze_state)
+			mi_disp_err_flag_esd_check_switch(&dsi->ddp_comp.mtk_crtc->base, true);
+#endif
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 end */
 		/* Suspend to Doze */
 		if (mtk_dsi_doze_status_change(dsi)) {
 			/* We use doze_get_mode_flags to determine if
@@ -3770,7 +3908,32 @@ static void mtk_output_dsi_enable(struct mtk_dsi *dsi,
 
 	CRTC_MMP_EVENT_END(crtc_idx, dsi_enable,
 		(unsigned long)dsi->output_en, 0);
-
+/*P16 code for HQFEAT-88981 by liaoxianguo at 2025/4/8 start*/
+#ifdef CONFIG_MI_DISP_NOTIFIER
+	if (new_doze_state)
+		blank = MI_DISP_DPMS_LP1;
+	else
+		blank = MI_DISP_DPMS_ON;
+	g_notify_data.data = &blank;
+	g_notify_data.disp_id = MI_DISPLAY_PRIMARY;
+	mi_disp_notifier_call_chain(MI_DISP_DPMS_EVENT, &g_notify_data);
+	mi_disp_feature_event_notify_by_type(mi_get_disp_id("primary"),
+		MI_DISP_EVENT_POWER, sizeof(blank), blank);
+#endif
+/*P16 code for HQFEAT-88981 by liaoxianguo at 2025/4/8 end*/
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 start */
+	if (dsi && mi_disp_lhbm_fod_enabled(dsi)) {
+		mi_disp_lhbm_fod_allow_tx_lhbm(dsi, true);
+		/* wake up lhbm_fod pending work */
+	}
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 end */
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+		if (!new_doze_state) {
+			dsi->mi_cfg.timestamp_panelon = get_jiffies_64();
+		}
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 	return;
 err_dsi_power_off:
 	mtk_dsi_stop(dsi);
@@ -3850,9 +4013,17 @@ static void mtk_output_dsi_disable(struct mtk_dsi *dsi, struct cmdq_pkt *cmdq_ha
 	struct mtk_drm_private *priv = crtc->dev->dev_private;
 	unsigned int crtc_idx = drm_crtc_index(crtc);
 	bool skip_panel_switch = mtk_dsi_skip_panel_switch(dsi);
-
-	DDPINFO("%s+ doze_enabled:%d crtc%u %s\n",
-		__func__, new_doze_state, drm_crtc_index(crtc), mtk_dump_comp_str(&dsi->ddp_comp));
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+	struct mi_event_info mi_event = {0};
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 start */
+#ifdef CONFIG_MI_DISP_DOZE_SUSPEND
+	bool fod_anim_flag = false;
+#endif
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 end */
+	DDPINFO("%s+ doze_enabled:%d\n", __func__, new_doze_state);
 
 	CRTC_MMP_EVENT_START(crtc_idx, dsi_disable,
 				(unsigned long)crtc, crtc_idx);
@@ -3864,9 +4035,62 @@ static void mtk_output_dsi_disable(struct mtk_dsi *dsi, struct cmdq_pkt *cmdq_ha
 	}
 
 	mtk_drm_crtc_wait_blank(mtk_crtc);
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+	if (dsi->mi_cfg.whether_backlight_zero) {
+		dsi->mi_cfg.whether_backlight_zero = false;
+		if (get_jiffies_64() - dsi->mi_cfg.timestamp_backlight_zero > HZ) {
+			mi_event.event_type = MI_EVENT_BACKLIGHT_ZERO;
+			mi_disp_mievent_int(MI_DISP_PRIMARY,&mi_event);
+		}
+	}
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 start */
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+	if (dsi->ddp_comp.mtk_crtc && dsi->ddp_comp.mtk_crtc->mi_esd_ctx) {
+		dsi->ddp_comp.mtk_crtc->mi_esd_ctx->panel_init = false;
+	}
+#endif
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 end */
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 start */
+#ifdef CONFIG_MI_DISP_DOZE_SUSPEND
+	if (dsi->ext && dsi->ext->params)
+		fod_anim_flag = dsi->mi_cfg.fod_anim_flag;
+	DDPINFO("%s fod_anim_flag:%d\n", __func__, fod_anim_flag);
+#endif
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 end */
+/* P16 code for HQFEAT-94432 by p-liaoxianguo at 2025/3/27 start */
+#ifdef CONFIG_MI_DISP_NOTIFIER
+	if (new_doze_state) {
+		blank = MI_DISP_DPMS_LP2;
+	} else {
+		blank = MI_DISP_DPMS_POWERDOWN;
+	}
+	g_notify_data.data = &blank;
+	g_notify_data.disp_id = MI_DISPLAY_PRIMARY;
+	mi_disp_notifier_call_chain(MI_DISP_DPMS_EARLY_EVENT, &g_notify_data);
+	mi_disp_feature_event_notify_by_type(mi_get_disp_id("primary"), MI_DISP_EVENT_POWER, sizeof(blank), blank);
+#endif
+/* P16 code for HQFEAT-94432 by p-liaoxianguo at 2025/3/27 end */
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 start */
+	if (dsi && mi_disp_lhbm_fod_enabled(dsi)) {
+		mi_disp_lhbm_fod_allow_tx_lhbm(dsi, false);
+	}
 
+#ifdef CONFIG_MI_DISP_DOZE_SUSPEND
+	if (dsi->ext && dsi->ext->params)
+		fod_anim_flag = dsi->mi_cfg.fod_anim_flag;
+	DDPINFO("%s fod_anim_flag:%d\n", __func__, fod_anim_flag);
+#endif
+/* P16 code for HQFEAT-94424 by p-zhangyundan at 2025/4/9 end */
 	/* 1. If not doze mode, turn off backlight */
 	if (dsi->panel && ((!new_doze_state && !skip_panel_switch) || force_lcm_update)) {
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 start */
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+		mi_disp_err_flag_esd_check_switch(&dsi->ddp_comp.mtk_crtc->base, false);
+#endif
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 end */
 		if (drm_panel_disable(dsi->panel)) {
 			DRM_ERROR("failed to disable the panel\n");
 			CRTC_MMP_EVENT_END(crtc_idx, dsi_disable,
@@ -3877,8 +4101,8 @@ static void mtk_output_dsi_disable(struct mtk_dsi *dsi, struct cmdq_pkt *cmdq_ha
 	dsi->pending_switch = skip_panel_switch;
 
 	if (priv && mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_SPHRT)
-			&& mtk_crtc->cur_usage == DISP_OPENING) {
-		DDPMSG("%s %d wait for opening\n", __func__, drm_crtc_index(crtc));
+			&& crtc_idx < MAX_CRTC && priv->usage[crtc_idx] == DISP_OPENING) {
+		DDPMSG("%s %d wait for opening\n", __func__, crtc_idx);
 		if (cmdq_handle)
 			cmdq_pkt_destroy(cmdq_handle);
 		goto SKIP_WAIT_FRAME_DONE;
@@ -3914,6 +4138,13 @@ SKIP_WAIT_FRAME_DONE:
 		if ((!new_doze_state && !skip_panel_switch) || force_lcm_update) {
 			if (drm_panel_unprepare(dsi->panel))
 				DRM_ERROR("failed to unprepare the panel\n");
+/* P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 start */
+#ifdef CONFIG_MI_DISP
+ 			else {
+ 				mi_dsi_panel_mi_cfg_state_update(dsi, MI_DISP_DPMS_POWERDOWN);
+			}
+#endif
+/* P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 end */
 		} else if (new_doze_state && !dsi->doze_enabled) {
 			mtk_output_en_doze_switch(dsi);
 		}
@@ -3925,7 +4156,17 @@ SKIP_WAIT_FRAME_DONE:
 	mtk_dsi_disable(dsi);
 	mtk_dsi_stop(dsi);
 	mtk_dsi_poweroff(dsi);
-
+/* P16 code for HQFEAT-89778 by p-zhangyundan at 2025/3/26 start */
+	if (dsi->panel && dsi->ext->funcs->panel_poweroff) {
+		dsi->ext->funcs->panel_poweroff(dsi->panel);
+		DDPINFO("lcm power down after dsi\n");
+	}
+/* P16 code for HQFEAT-89778 by p-zhangyundan at 2025/3/26 end */
+/* P16 code for HQFEAT-94432 by p-liaoxianguo at 2025/3/27 start */
+#ifdef CONFIG_MI_DISP_NOTIFIER
+	mi_disp_notifier_call_chain(MI_DISP_DPMS_EVENT, &g_notify_data);
+#endif
+/* P16 code for HQFEAT-94432 by p-liaoxianguo at 2025/3/27 end */
 	if (dsi->slave_dsi) {
 		/* set DSI into ULPS mode */
 		mtk_dsi_reset_engine(dsi->slave_dsi);
@@ -4005,7 +4246,6 @@ static void mtk_dsi_encoder_disable(struct drm_encoder *encoder)
 	int index = drm_crtc_index(crtc);
 	int data = MTK_DISP_BLANK_POWERDOWN;
 	struct mtk_drm_private *priv = crtc->dev->dev_private;
-	unsigned int async_ctrl_flag = 0;
 
 	//Temp workaround for MT6855 suspend/resume issue
 	switch (priv->data->mmsys_id) {
@@ -4016,14 +4256,6 @@ static void mtk_dsi_encoder_disable(struct drm_encoder *encoder)
 		break;
 	}
 
-	if (unlikely(index < 0 && index >= MAX_CRTC)) {
-		DDPPR_ERR("%s invalid CRTC idx %d\n", __func__, index);
-		return;
-	}
-
-	if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_ASYNC_CONN_PWR_CTRL))
-		async_ctrl_flag = 1;
-
 	CRTC_MMP_EVENT_START(index, dsi_suspend,
 			(unsigned long)crtc, index);
 
@@ -4031,12 +4263,6 @@ static void mtk_dsi_encoder_disable(struct drm_encoder *encoder)
 	mtk_drm_idlemgr_kick(__func__, crtc, 0);
 
 	CRTC_MMP_MARK(index, dsi_suspend, 1, 0);
-
-	if (async_ctrl_flag) {
-		/* release commit lock during DSI connector disable */
-		atomic_set(&priv->need_wound_crtc[index], 1);
-		DDP_MUTEX_UNLOCK(&priv->commit.lock, __func__, __LINE__);
-	}
 
 	/* TODO: assume DSI0 would use for primary display so far */
 	if (comp->id == DDP_COMPONENT_DSI0)
@@ -4059,13 +4285,6 @@ static void mtk_dsi_encoder_disable(struct drm_encoder *encoder)
 		mtk_disp_sub_notifier_call_chain(MTK_DISP_EVENT_BLANK,
 					&data);
 
-	if (async_ctrl_flag) {
-		/* regain commit lock after disable done and wake up wound wait queue */
-		DDP_MUTEX_LOCK(&priv->commit.lock, __func__, __LINE__);
-		atomic_set(&priv->need_wound_crtc[index], 0);
-		wake_up(&priv->wound_wq[index]);
-	}
-
 	CRTC_MMP_EVENT_END(index, dsi_suspend,
 			(unsigned long)dsi->output_en, 0);
 }
@@ -4074,30 +4293,14 @@ static void mtk_dsi_encoder_enable(struct drm_encoder *encoder)
 {
 	struct mtk_dsi *dsi = encoder_to_dsi(encoder);
 	struct drm_crtc *crtc = encoder->crtc;
-	struct mtk_drm_private *priv = crtc->dev->dev_private;
 	struct mtk_ddp_comp *comp = &dsi->ddp_comp;
 	int index = drm_crtc_index(crtc);
 	int data = MTK_DISP_BLANK_UNBLANK;
-	unsigned int async_ctrl_flag = 0;
 
 	CRTC_MMP_EVENT_START(index, dsi_resume,
 			(unsigned long)crtc, index);
 
 	DDPINFO("%s\n", __func__);
-
-	if (unlikely(index < 0 && index >= MAX_CRTC)) {
-		DDPPR_ERR("%s invalid CRTC idx %d\n", __func__, index);
-		return;
-	}
-
-	if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_ASYNC_CONN_PWR_CTRL))
-		async_ctrl_flag = 1;
-
-	if (async_ctrl_flag) {
-		/* release commit lock during DSI connector enable */
-		atomic_set(&priv->need_wound_crtc[index], 1);
-		DDP_MUTEX_UNLOCK(&priv->commit.lock, __func__, __LINE__);
-	}
 
 	/* TODO: assume DSI0 would use for primary display so far */
 	if (comp->id == DDP_COMPONENT_DSI0) {
@@ -4128,13 +4331,6 @@ static void mtk_dsi_encoder_enable(struct drm_encoder *encoder)
 		mtk_disp_sub_notifier_call_chain(MTK_DISP_EVENT_BLANK,
 					&data);
 		DDP_PROFILE("[PROFILE] %s after notify end\n", __func__);
-	}
-
-	if (async_ctrl_flag) {
-		/* regain commit lock after enable done and wake up wound wait queue */
-		DDP_MUTEX_LOCK(&priv->commit.lock, __func__, __LINE__);
-		atomic_set(&priv->need_wound_crtc[index], 0);
-		wake_up(&priv->wound_wq[index]);
 	}
 
 	CRTC_MMP_EVENT_END(index, dsi_resume,
@@ -4741,7 +4937,13 @@ int mtk_dsi_esd_read(struct mtk_ddp_comp *comp, void *handle, void *ptr)
 		params = dsi->ext->params;
 	else /* can't find panel ext information, stop esd read */
 		return 0;
-
+	/* P16 code for BUGP16-5005 by p-zhangyundan at 2025/6/11 start */
+	// stop read esd reg when aod/fod
+	if (dsi->doze_enabled || dsi->mi_cfg.feature_val[DISP_FEATURE_DOZE_BRIGHTNESS]){
+		DDPMSG("%s stop read esd reg when fod on\n", __func__);
+		return 0;
+        }
+	/* P16 code for BUGP16-5005 by p-zhangyundan at 2025/6/11 end */
 	for (i = 0 ; i < ESD_CHECK_NUM ; i++) {
 
 		if (params->lcm_esd_check_table[i].cmd == 0)
@@ -4778,7 +4980,11 @@ int mtk_dsi_esd_cmp(struct mtk_ddp_comp *comp, void *handle, void *ptr)
 		params = dsi->ext->params;
 	else /* can't find panel ext information, stop esd read */
 		return 0;
-
+	/* P16 code for HQFEAT-89595 by zhangyundan at 2025/4/3 start */
+	// stop esd check when aod
+	if (dsi->doze_enabled || dsi->mi_cfg.feature_val[DISP_FEATURE_DOZE_BRIGHTNESS])
+		return 0;
+	/* P16 code for HQFEAT-89595 by zhangyundan at 2025/4/3 end */
 	for (i = 0; i < ESD_CHECK_NUM; i++) {
 		if (dsi->ext->params->lcm_esd_check_table[i].cmd == 0)
 			break;
@@ -4795,7 +5001,7 @@ int mtk_dsi_esd_cmp(struct mtk_ddp_comp *comp, void *handle, void *ptr)
 
 		lcm_esd_tb = &params->lcm_esd_check_table[i];
 
-		if (((tmp0 & 0xff) == 0x1C) || ((tmp0 & 0xff) == 0x1A)) {
+		if ((tmp0 & 0xff) == 0x1C) {
 			for (j = 0; j < lcm_esd_tb->count && j < 4; j++) {
 				chk_val[j] = tmp1 & 0xff;
 				tmp1 = tmp1 >> 8;
@@ -6689,7 +6895,10 @@ int mtk_mipi_dsi_write_gce(struct mtk_dsi *dsi,
 			struct mtk_ddic_dsi_msg *cmd_msg)
 {
 	unsigned int i = 0, j = 0;
-	int dsi_mode = readl(dsi->regs + DSI_MODE_CTRL) & MODE;
+	/* P16 code for BUGP16-902 by p-zhangyundan at 2025/4/22 start */
+	//int dsi_mode = readl(dsi->regs + DSI_MODE_CTRL) & MODE;
+	int dsi_mode = mtk_dsi_is_cmd_mode(&dsi->ddp_comp) ? 0: 3;
+	/* P16 code for BUGP16-902 by p-zhangyundan at 2025/4/22 end */
 	struct mipi_dsi_msg msg;
 	unsigned int use_lpm = cmd_msg->flags & MIPI_DSI_MSG_USE_LPM;
 	struct mtk_ddp_comp *comp = &dsi->ddp_comp;
@@ -8469,6 +8678,7 @@ int mtk_lcm_dsi_ddic_handler(struct mipi_dsi_device *dsi_dev, struct cmdq_pkt *h
 
 	CRTC_MMP_EVENT_START(index, ddic_send_cmd, 0xffffffff, prop);
 	if ((prop & MTK_LCM_DSI_CMD_PROP_LOCK) != 0) {
+		DDP_COMMIT_LOCK(&priv->commit.lock, __func__, __LINE__);
 		DDP_MUTEX_LOCK(&mtk_crtc->lock, __func__, __LINE__);
 	}
 
@@ -8486,6 +8696,7 @@ int mtk_lcm_dsi_ddic_handler(struct mipi_dsi_device *dsi_dev, struct cmdq_pkt *h
 
 	if ((prop & MTK_LCM_DSI_CMD_PROP_LOCK) != 0) {
 		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);
+		DDP_COMMIT_UNLOCK(&priv->commit.lock, __func__, __LINE__);
 	}
 	CRTC_MMP_EVENT_END(index, ddic_send_cmd, mask, ret);
 
@@ -8499,12 +8710,18 @@ int mtk_lcm_dsi_ddic_handler(struct mipi_dsi_device *dsi_dev, struct cmdq_pkt *h
 	return ret;
 }
 EXPORT_SYMBOL(mtk_lcm_dsi_ddic_handler);
-
+/* P16 code for BUGP16-1163 by p-zhangyundan at 2025/5/14 start */
+#ifndef CONFIG_FACTORY_BUILD
+bool is_normal_30hz;
+bool exit_normal_30hz;
+#endif
 void mtk_dsi_send_switch_cmd(struct mtk_dsi *dsi,
 			struct cmdq_pkt *handle,
 			struct mtk_drm_crtc *mtk_crtc, unsigned int cur_mode, unsigned int dst_mode)
 {
-	unsigned int i;
+	int old_mode_fps = 0;
+	static int last_fps = 0;
+	unsigned int i, count, index = 0;
 	struct dfps_switch_cmd *dfps_cmd = NULL;
 	struct mtk_panel_params *params = NULL;
 	struct drm_display_mode *old_mode = NULL;
@@ -8522,17 +8739,80 @@ void mtk_dsi_send_switch_cmd(struct mtk_dsi *dsi,
 	//if (dsi->slave_dsi)
 	//	mtk_dsi_leave_idle(dsi->slave_dsi);
 
-	for (i = 0; i < MAX_DYN_CMD_NUM; i++) {
-		dfps_cmd = &params->dyn_fps.dfps_cmd_table[i];
-		if (dfps_cmd->cmd_num == 0)
-			break;
-
-		if (dfps_cmd->src_fps == 0 || drm_mode_vrefresh(old_mode) == dfps_cmd->src_fps)
-			mipi_dsi_dcs_write_gce_dyn(dsi, handle, dfps_cmd->para_list,
-				dfps_cmd->cmd_num);
+	old_mode_fps = drm_mode_vrefresh(old_mode);
+#ifndef CONFIG_FACTORY_BUILD
+	if (params->dyn_fps.ext_cmd_counts != 0) {
+		if ((dsi->doze_enabled ==false || dsi->mi_cfg.feature_val[DISP_FEATURE_DOZE_BRIGHTNESS] == DOZE_TO_NORMAL) && dst_mode == 30) {
+			count = params->dyn_fps.ext_cmd_counts;
+			index = params->dyn_fps.ext_cmd_start;
+			DDPMSG("%s: change fps to %d in normal mode and skip cmd 0x39,send ic cmd counts = %d\n",
+				__func__, dst_mode, count);
+			for (i = 0; i < count; i++) {
+				dfps_cmd = &params->dyn_fps.dfps_cmd_table[index+i];
+				if (dfps_cmd->cmd_num == 0)
+					break;
+				if (dfps_cmd->src_fps == 0 || old_mode_fps == dfps_cmd->src_fps)
+					mipi_dsi_dcs_write_gce_dyn(dsi, handle, dfps_cmd->para_list,
+						dfps_cmd->cmd_num);
+			}
+			is_normal_30hz = true;
+		}
+		if (last_fps == 30 && is_normal_30hz) {
+			count = params->dyn_fps.ext_cmd_counts;
+			index = params->dyn_fps.ext_cmd_start;
+			DDPMSG("%s: change fps to %d in normal mode and skip cmd 0x39,send ic cmd counts = %d\n",
+				__func__, dst_mode, count);
+			for (i = 0; i < count; i++) {
+				dfps_cmd = &params->dyn_fps.dfps_cmd_table[index+i];
+				if (dfps_cmd->cmd_num == 0)
+					break;
+				if (dfps_cmd->src_fps == 0 || old_mode_fps == dfps_cmd->src_fps)
+					mipi_dsi_dcs_write_gce_dyn(dsi, handle, dfps_cmd->para_list,
+						dfps_cmd->cmd_num);
+			}
+			is_normal_30hz = false;
+			exit_normal_30hz = true;
+		}
 	}
+#endif
+	if (params->dyn_fps.cmds_counts_switch_fps != 0 &&
+		params->dyn_fps.long_dfps_cmds_counts != 0 &&
+		params->dyn_fps.long_dfps_cmds_counts != 0) {
+		if (last_fps == params->dyn_fps.cmds_counts_switch_fps) {
+			count = params->dyn_fps.long_dfps_cmds_counts;
+		} else {
+			count = params->dyn_fps.short_dfps_cmds_counts;
+			index = params->dyn_fps.short_dfps_cmds_start_index;
+		}
+		DDPMSG("%s: change fps from %d to %d, (last_fps:%d) send ic cmd counts = %d\n",
+			__func__, old_mode_fps, dst_mode, last_fps, count);
+		for (i = 0; i < count; i++) {
+#ifndef CONFIG_FACTORY_BUILD
+			if (is_normal_30hz || exit_normal_30hz) {
+				exit_normal_30hz = false;
+				break;
+			}
+#endif
+			dfps_cmd = &params->dyn_fps.dfps_cmd_table[index+i];
+			if (dfps_cmd->cmd_num == 0)
+				break;
+			if (dfps_cmd->src_fps == 0 || old_mode_fps == dfps_cmd->src_fps)
+				mipi_dsi_dcs_write_gce_dyn(dsi, handle, dfps_cmd->para_list,
+					dfps_cmd->cmd_num);
+		}
+	} else {
+		for (i = 0; i < MAX_DYN_CMD_NUM; i++) {
+			dfps_cmd = &params->dyn_fps.dfps_cmd_table[i];
+			if (dfps_cmd->cmd_num == 0)
+				break;
+			if (dfps_cmd->src_fps == 0 || old_mode_fps == dfps_cmd->src_fps)
+				mipi_dsi_dcs_write_gce_dyn(dsi, handle, dfps_cmd->para_list,
+					dfps_cmd->cmd_num);
+		}
+	}
+	last_fps = dst_mode;
 }
-
+/* P16 code for BUGP16-1163 by p-zhangyundan at 2025/5/14 end */
 unsigned int mtk_dsi_get_dsc_compress_rate(struct mtk_dsi *dsi)
 {
 	unsigned int compress_rate, bpp, bpc;
@@ -8870,7 +9150,11 @@ void mtk_dsi_set_mmclk_by_datarate_V2(struct mtk_dsi *dsi,
 		(mtk_crtc->dli_relay_1tnp));
 	unsigned int crtc_idx = drm_crtc_index(&mtk_crtc->base);
 	struct mtk_drm_private *priv = mtk_crtc->base.dev->dev_private;
-
+	/* P16 code for BUGP16-7448 by p-zhangyundan at 2025/7/14 start */
+	unsigned int last_pixclk = 0;
+	unsigned int mmclk_need_up_now = 0;
+	unsigned int skip_set_mmclk = 0;
+	/* P16 code for BUGP16-7448 by p-zhangyundan at 2025/7/14 end */
 	to_info = mtk_crtc_get_total_overhead(mtk_crtc);
 	DDPINFO("%s: crtc:%d overhead is_support:%d, width L:%d R:%d\n", __func__,
 			crtc_idx, to_info.is_support,
@@ -9174,12 +9458,23 @@ void mtk_dsi_set_mmclk_by_datarate_V2(struct mtk_dsi *dsi,
 		} else {
 			CRTC_MMP_MARK((int) crtc_idx, set_mmclk, 0, pixclk);
 		}
-
-		DDPINFO("%s, %d, crtc:%d, data_rate=%d, mmclk=%u pixclk_min=%d, dual=%u\n", __func__,
-				__LINE__, crtc_idx, data_rate,
-				pixclk, pixclk_min, mtk_crtc->is_dual_pipe);
-
-		mtk_drm_set_mmclk_by_pixclk(&mtk_crtc->base, pixclk, __func__);
+		/* P16 code for BUGP16-7448 by p-zhangyundan at 2025/7/14 start */
+		last_pixclk = mtk_drm_get_mmclk(&mtk_crtc->base, __func__) / 1000000;
+		DDPINFO("%s, %d, crtc:%d, data_rate=%d, last_pixclk=%u, mmclk=%u pixclk_min=%d, dual=%u\n", __func__,
+				__LINE__, crtc_idx, data_rate, last_pixclk,
+ 				pixclk, pixclk_min, mtk_crtc->is_dual_pipe);
+		mmclk_need_up_now =
+			(mtk_crtc->qos_ctx) ? mtk_crtc->qos_ctx->mmclk_need_up_now : 0;
+		if (mmclk_need_up_now){
+			mtk_crtc->qos_ctx->mmclk_need_up_now = 0;
+			if (last_pixclk > pixclk)
+				skip_set_mmclk = 1;
+		}
+		if(!skip_set_mmclk)
+			mtk_drm_set_mmclk_by_pixclk(&mtk_crtc->base, pixclk, __func__);
+		else
+			DDPINFO("%s skip mmclk change\n", __func__);
+		/* P16 code for BUGP16-7448 by p-zhangyundan at 2025/7/14 end */
 	}
 }
 
@@ -9828,6 +10123,38 @@ static void mtk_dsi_vdo_timing_change(struct mtk_dsi *dsi,
 			return;
 		}
 
+		if (dsi && dsi->ext && dsi->ext->params
+			&& dsi->ext->params->change_fps_by_vfp_send_cmd) {
+			/*wait and clear EOF
+			 * avoid other display related task break fps change task
+			 * because fps change need stop & re-start vdo mode
+			 */
+			cmdq_pkt_wfe(handle,
+				     mtk_crtc->gce_obj.event[EVENT_CMD_EOF]);
+			/*1.1 send cmd: stop vdo mode*/
+			mtk_dsi_stop_vdo_mode(dsi, handle);
+			/* for crtc first enable,dyn fps fail*/
+			if (dsi->data_rate == 0) {
+				dsi->data_rate = mtk_dsi_default_rate(dsi);
+				mtk_mipi_tx_pll_rate_set_adpt(dsi->phy, dsi->data_rate);
+				if (dsi->ext->params->data_rate_khz)
+					mtk_mipi_tx_pll_rate_khz_set_adpt(dsi->phy,
+						dsi->ext->params->data_rate_khz);
+				if (dsi->slave_dsi) {
+					dsi->slave_dsi->data_rate = dsi->data_rate;
+					mtk_mipi_tx_pll_rate_set_adpt(dsi->slave_dsi->phy, dsi->data_rate);
+					if (dsi->ext->params->data_rate_khz)
+						mtk_mipi_tx_pll_rate_khz_set_adpt(dsi->slave_dsi->phy,
+							dsi->ext->params->data_rate_khz);
+				}
+				if (dsi->data_rate) {
+					mtk_dsi_phy_timconfig(dsi, NULL);
+					if (dsi->slave_dsi)
+						mtk_dsi_phy_timconfig(dsi->slave_dsi, NULL);
+				}
+			}
+		}
+
 		if (dsi->mipi_hopping_sta && dsi->ext) {
 			DDPINFO("%s,mipi_clk_change_sta\n", __func__);
 			vfp = dsi->ext->params->dyn.vfp;
@@ -9866,6 +10193,23 @@ static void mtk_dsi_vdo_timing_change(struct mtk_dsi *dsi,
 		if (dsi->slave_dsi)
 			mtk_dsi_porch_setting(&dsi->slave_dsi->ddp_comp,
 						handle, DSI_VFP, vfp);
+
+		if (dsi && dsi->ext && dsi->ext->params
+			&& dsi->ext->params->change_fps_by_vfp_send_cmd) {
+			/*1.2 send cmd: send cmd*/
+			mtk_dsi_send_switch_cmd(dsi, handle, mtk_crtc, src_mode,
+						drm_mode_vrefresh(&adjusted_mode));
+			/*1.3 send cmd: start vdo mode*/
+			mtk_dsi_start_vdo_mode(comp, handle);
+			/*clear EOF
+			 * avoid config continue after we trigger vdo mode
+			 */
+			cmdq_pkt_clear_event(handle,
+				     mtk_crtc->gce_obj.event[EVENT_CMD_EOF]);
+			/*1.4 send cmd: trigger*/
+			mtk_disp_mutex_trigger(comp->mtk_crtc->mutex[0], handle);
+			mtk_dsi_trigger(comp, handle);
+		}
 	}
 
 	if (mtk_crtc->qos_ctx)
@@ -10584,7 +10928,25 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 			panel_ext->funcs->set_backlight_cmdq(dsi,
 					mipi_dsi_dcs_write_gce,
 					handle, *(int *)params);
+/* P16 code for HQFEAT-94083 by p-zhangyundan at 2025/4/13 start */
+#ifdef CONFIG_MI_DISP
+		mi_disp_feature_event_notify_by_type(mi_get_disp_id("primary"), MI_DISP_EVENT_51_BRIGHTNESS, sizeof(*(int *)params), *(int *)params);
+#endif
 	}
+/* P16 code for HQFEAT-94083 by p-zhangyundan at 2025/4/13 end */
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+		if (*(int *)params == 0) {
+			if (!dsi->mi_cfg.whether_backlight_zero) {
+				dsi->mi_cfg.timestamp_backlight_zero = get_jiffies_64();
+				if (dsi->output_en && !dsi->doze_enabled &&
+					(dsi->mi_cfg.timestamp_backlight_zero - dsi->mi_cfg.timestamp_panelon) > HZ) {
+						dsi->mi_cfg.whether_backlight_zero = true;
+				}
+			}
+		}
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 		break;
 	case DSI_SET_BL_AOD:
 	{
@@ -11192,6 +11554,20 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 		dual_te_init((struct drm_crtc *)params);
 	}
 		break;
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 start */
+#ifdef CONFIG_MI_DISP_ESD_CHECK
+	case ESD_RESTORE_BACKLIGHT:
+	{
+		struct mtk_dsi *dsi = container_of(comp, struct mtk_dsi, ddp_comp);
+		panel_ext = mtk_dsi_get_panel_ext(comp);
+		if (panel_ext && panel_ext->funcs &&
+				panel_ext->funcs->esd_restore_backlight) {
+			panel_ext->funcs->esd_restore_backlight(dsi->panel);
+		}
+	}
+		break;
+#endif
+/* P16 code for HQFEAT-89531 by p-zhangyundan at 2025/3/31 end */
 	case DSI_GET_LINE_TIME_NS:
 	{
 		struct mtk_drm_crtc *mtk_crtc = comp->mtk_crtc;
@@ -11311,6 +11687,30 @@ static int mtk_dsi_io_cmd(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 		*dur_vblank = 1000000000UL / fps / vtotal * vfp / 1000;
 	}
 		break;
+	/* P16 code for BUGP16-3142 by p-zhangyundan at 2025/5/20 start */
+	case DSI_HDR_SET:
+	{
+		panel_ext = mtk_dsi_get_panel_ext(comp);
+		if (!(panel_ext && panel_ext->funcs &&
+		      panel_ext->funcs->hdr_set_cmdq))
+			break;
+
+		panel_ext->funcs->hdr_set_cmdq(dsi->panel, dsi,
+					       mipi_dsi_dcs_write_gce, handle,
+					       *(bool *)params);
+		break;
+	}
+	case DSI_HDR_GET_STATE:
+	{
+		panel_ext = mtk_dsi_get_panel_ext(comp);
+		if (!(panel_ext && panel_ext->funcs &&
+		      panel_ext->funcs->hdr_get_state))
+			break;
+
+		panel_ext->funcs->hdr_get_state(dsi->panel, (bool *)params);
+		break;
+	}
+	/* P16 code for BUGP16-3142 by p-zhangyundan at 2025/5/20 end */
 	default:
 		break;
 	}
@@ -11451,11 +11851,28 @@ static int mtk_dsi_bind(struct device *dev, struct device *master, void *data)
 		DRM_ERROR("Encoder create failed with %d\n", ret);
 		goto err_unregister;
 	}
-
+/* P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 start */
+#ifdef CONFIG_MI_DISP
+ 	if (dsi->ddp_comp.id == DDP_COMPONENT_DSI0) {
+ 		ret = mi_disp_feature_attach_display(dsi,
+ 				MI_DISP_PRIMARY, MI_INTF_DSI);
+ 		if (ret) {
+ 			pr_err("failed to attach %s display(%s intf)\n",
+ 				get_disp_id_name(MI_DISP_PRIMARY),
+ 				get_disp_intf_type_name(MI_INTF_DSI));
+ 		}
+ 	}
+#endif
+/* P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 end */
 	DDPINFO("%s-\n", __func__);
 	return 0;
 
 err_unregister:
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+	mi_disp_mievent_str(MI_EVENT_DSI_ERROR);
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 	mipi_dsi_host_unregister(&dsi->host);
 	mtk_ddp_comp_unregister(drm, &dsi->ddp_comp);
 	return ret;
@@ -11469,7 +11886,12 @@ static void mtk_dsi_unbind(struct device *dev, struct device *master,
 
 	if (dsi->is_slave)
 		return;
-
+/* P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 start */
+#ifdef CONFIG_MI_DISP
+        if (dsi->ddp_comp.id == DDP_COMPONENT_DSI0)
+                mi_disp_feature_detach_display(dsi, MI_DISP_PRIMARY, MI_INTF_DSI);
+#endif
+/* P16 code for HQFEAT-94010 by zhangyundan at 2025/3/10 end */
 	mtk_dsi_destroy_conn_enc(dsi);
 	mipi_dsi_host_unregister(&dsi->host);
 	mtk_ddp_comp_unregister(drm, &dsi->ddp_comp);
@@ -11601,17 +12023,16 @@ static const struct mtk_dsi_driver_data mt6989_dsi_driver_data = {
 	.need_bypass_shadow = false,
 	.need_wait_fifo = false,
 	.dsi_buffer = true,
-	.smi_dbg_disable = true,
 	.buffer_unit = 32,
 	.sram_unit = 32,
 	.urgent_lo_fifo_us = 14,
 	.urgent_hi_fifo_us = 15,
+	.output_valid_fifo_us = 50,
 	.max_vfp = 0x7ffe,
 	.mmclk_by_datarate = mtk_dsi_set_mmclk_by_datarate_V2,
 	.bubble_rate = 115,
 	.n_verion = VER_N4,
 	.require_phy_reset = true,
-	.support_pre_urgent = true,
 };
 
 static const struct mtk_dsi_driver_data mt6897_dsi_driver_data = {
@@ -11889,11 +12310,21 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 	ret = mipi_dsi_host_register(&dsi->host);
 	if (ret < 0) {
 		dev_err(dev, "failed to register DSI host: %d\n", ret);
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+		mi_disp_mievent_str(MI_EVENT_DSI_ERROR);
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 		return -EPROBE_DEFER;
 	}
 	of_id = of_match_device(mtk_dsi_of_match, &pdev->dev);
 	if (!of_id) {
 		dev_err(dev, "DSI device match failed\n");
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+		mi_disp_mievent_str(MI_EVENT_DSI_ERROR);
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 		return -EPROBE_DEFER;
 	}
 
@@ -11916,7 +12347,12 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 				dev_info(dev, "Waiting for bridge or panel driver\n");
 				dsi->panel = NULL;
 				ret = -EPROBE_DEFER;
+#if IS_ENABLED(CONFIG_MIEV)
+				goto error_;
+#else
 				goto error;
+#endif
+
 			}
 			if (dsi->panel)
 				dsi->ext = find_panel_ext(dsi->panel);
@@ -12065,6 +12501,12 @@ static int mtk_dsi_probe(struct platform_device *pdev)
 	return ret;
 
 error:
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 start */
+#if IS_ENABLED(CONFIG_MIEV)
+		mi_disp_mievent_str(MI_EVENT_DSI_ERROR);
+error_:
+#endif
+/* P16 code for HQFEAT-89044 by p-zhangyundan at 2025/4/27 end */
 	mipi_dsi_host_unregister(&dsi->host);
 	return -EPROBE_DEFER;
 }
