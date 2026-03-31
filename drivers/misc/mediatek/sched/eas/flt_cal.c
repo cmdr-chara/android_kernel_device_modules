@@ -17,6 +17,7 @@
 unsigned int (*grp_cal_rat)(unsigned long long x, unsigned long long y);
 EXPORT_SYMBOL(grp_cal_rat);
 #endif
+
 const char *task_event_names[] = {
 	"PUT_PREV_TASK",
 	"PICK_NEXT_TASK",
@@ -723,7 +724,9 @@ static void update_history(struct rq *rq, struct task_struct *p,
 			util_avg_max = util_avg_hist[widx];
 		util_avg_sum += util_avg_hist[widx];
 	}
+
 	avg = div64_u64(util_avg_sum, sched_ravg_hist_size);
+
 	fts->util_sum = 0;
 done:
 	trace_sched_update_history(rq, p, runtime, samples,
@@ -876,6 +879,7 @@ static void flt_update_task_ravg(struct task_struct *p, struct rq *rq, int event
 
 	update_task_demand(p, rq, event, wallclock);
 	update_cpu_busy_time(p, rq, event, wallclock, irqtime);
+
 done:
 	fts->last_update_time += delta << 10;
 	fts->mark_start = wallclock;
@@ -896,6 +900,7 @@ static void flt_init_new_task_load(struct task_struct *p)
 	fts->last_update_time = 0;
 	fts->sum = 0;
 	fts->util_sum = 0;
+
 	fts->util_demand = 0;
 	fts->active_time = 0;
 

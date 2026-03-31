@@ -1727,8 +1727,8 @@ static void mtk_find_best_candidates(struct cpumask *candidates, struct task_str
 	int order_index = fbc_params->order_index;
 	int end_index = fbc_params->end_index;
 	int reverse = fbc_params->reverse;
-
 	num_vip = prev_min_num_vip = min_num_vip = UINT_MAX;
+	
 #if IS_ENABLED(CONFIG_MTK_SCHED_VIP_TASK)
 	vts = &((struct mtk_task *) p->android_vendor_data1)->vip_task;
 	vts->vip_prio = get_vip_task_prio(p);
@@ -1792,6 +1792,7 @@ static void mtk_find_best_candidates(struct cpumask *candidates, struct task_str
 						!rt_rq_throttled(&(cpu_rq(cpu)->rt)))
 				continue;
 
+// Interfere with all possible core selections, including VIP threads.
 			cpu_util = cpu_util_next(cpu, p, cpu);
 			cpu_util_without_p = cpu_util_next(cpu, p, -1);
 			cpu_cap = capacity_of(cpu);
@@ -1976,6 +1977,7 @@ void mtk_find_energy_efficient_cpu(void *data, struct task_struct *p, int prev_c
 	compute_effective_softmask(p, &latency_sensitive, &effective_softmask);
 
 	pd = rcu_dereference(rd->pd);
+
 	if (!pd || READ_ONCE(rd->overutilized)) {
 		select_reason = LB_FAIL;
 		rcu_read_unlock();
@@ -2005,7 +2007,6 @@ void mtk_find_energy_efficient_cpu(void *data, struct task_struct *p, int prev_c
 	irq_log_store();
 
 	mtk_get_gear_indicies(p, &order_index, &end_index, &reverse);
-
 	irq_log_store();
 
 	eenv.min_cap = min_cap;

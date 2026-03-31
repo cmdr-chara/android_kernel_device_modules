@@ -549,6 +549,7 @@ int core_ctl_set_limit_cpus(unsigned int cid,
 	min = min(min, max);
 	cluster->max_cpus = max;
 	cluster->min_cpus = min;
+
 	spin_unlock_irqrestore(&state_lock, flags);
 	core_ctl_debug("%s: Try to adjust cluster %u limit cpus. min_cpus: %u, max_cpus: %u",
 			TAG, cid, min, max);
