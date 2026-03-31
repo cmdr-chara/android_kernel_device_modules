@@ -645,6 +645,17 @@
 #define SENSOR_DRVNAME_GC13A2_MIPI_RAW          "gc13a2_mipi_raw"
 #define SENSOR_DRVNAME_S5KGN9SP_MIPI_RAW        "s5kgn9sp_mipi_raw"
 
+/*P16 add start*/
+#define LAPISS5KHPEWIDE_SENSOR_ID                      0x1B7E
+#define SENSOR_DRVNAME_LAPISS5KHPEWIDE_MIPI_RAW        "lapiss5khpewide_mipi_raw"
+#define LAPISIMX882WIDE_SENSOR_ID                      0x8202
+#define SENSOR_DRVNAME_LAPISIMX882WIDE_MIPI_RAW        "lapisimx882wide_mipi_raw"
+#define LAPISOV20BFRONT_SENSOR_ID                      0x2042
+#define SENSOR_DRVNAME_LAPISOV20BFRONT_MIPI_RAW        "lapisov20bfront_mipi_raw"
+#define LAPISOV08F10ULTRA_SENSOR_ID                    0x5608
+#define SENSOR_DRVNAME_LAPISOV08F10ULTRA_MIPI_RAW      "lapisov08f10ultra_mipi_raw"
+/*P16 add end*/
+
 /******************************************************************************
  *
  ******************************************************************************/
