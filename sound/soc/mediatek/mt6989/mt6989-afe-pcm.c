@@ -2160,7 +2160,7 @@ static const struct snd_kcontrol_new memif_ul25_ch1_mix[] = {
 
 static const struct snd_kcontrol_new memif_ul25_ch2_mix[] = {
 	SOC_DAPM_SINGLE_AUTODISABLE("I2SIN6_CH2", AFE_CONN069_5,
-					I_I2SIN6_CH1, 1, 0),
+					I_I2SIN6_CH2, 1, 0),
 };
 
 static const struct snd_kcontrol_new mtk_dsp_dl_playback_mix[] = {

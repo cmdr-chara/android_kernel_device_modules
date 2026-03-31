@@ -46,6 +46,7 @@ static struct wakeup_source *ultra_suspend_lock;
 static bool pcm_dump_switch;
 static bool pcm_dump_on;
 static bool afe_hw_free; // if afe hw free and call stop by notify, set yes to avoid stop again
+static bool toggle_clr_irq; // config in dts to indicator platform use toggle clean irq
 static const char *const mtk_scp_ultra_dump_str[] = {
 	"Off",
 	"On"};
@@ -67,6 +68,24 @@ static struct ultra_gain_config gain_config = {
 	.mic_gain = 0,
 	.receiver_gain = 0
 };
+
+/* clear pending IRQ */
+static int mtk_ultra_clr_irq(struct mtk_base_afe *afe,
+			     const struct mtk_base_irq_data *irq_data)
+{
+	unsigned int tmp_reg = 0;
+
+	if (toggle_clr_irq) {
+		regmap_read(afe->regmap, irq_data->irq_clr_reg, &tmp_reg);
+		regmap_update_bits(afe->regmap, irq_data->irq_clr_reg,
+				   0xc0000000,
+				   tmp_reg^0xc0000000);
+	} else {
+		regmap_write(afe->regmap, irq_data->irq_clr_reg,
+			     1 << irq_data->irq_clr_shift);
+	}
+	return 0;
+}
 
 /*****************************************************************************
  * SCP Recovery Register
@@ -115,13 +134,9 @@ static int usnd_scp_recover_event(struct notifier_block *this,
 						      irq_data_ul,
 						      ultra_mem->ultra_ul_memif_id);
 
-			/* clear pending dl irq */
-			regmap_write(afe->regmap, irq_data_dl->irq_clr_reg,
-				     1 << irq_data_dl->irq_clr_shift);
 
-			/* clear pending ul irq */
-			regmap_write(afe->regmap, irq_data_ul->irq_clr_reg,
-				     1 << irq_data_ul->irq_clr_shift);
+			mtk_ultra_clr_irq(afe, irq_data_dl);
+			mtk_ultra_clr_irq(afe, irq_data_ul);
 
 			/* Set dl&ul irq to ap */
 			set_afe_dl_irq_target(false);
@@ -165,6 +180,16 @@ static int ultra_stop_memif_and_irq(struct mtk_base_scp_ultra *scp_ultra)
 			 __func__);
 		return 0;
 	}
+	// stop scp
+	if (scp_ultra->usnd_state == SCP_ULTRA_STATE_START) {
+		ultra_ipi_send(AUDIO_TASK_USND_MSG_ID_STOP,
+			       true,
+			       0,
+			       NULL,
+			       ULTRA_IPI_NEED_ACK);
+		scp_ultra->usnd_state = SCP_ULTRA_STATE_STOP;
+	}
+
 	// stop dl memif
 	ultra_memif_set_disable_hw_sema(afe, ultra_mem->ultra_dl_memif_id);
 	// stop ul memif
@@ -179,27 +204,13 @@ static int ultra_stop_memif_and_irq(struct mtk_base_scp_ultra *scp_ultra)
 				      irq_data_ul,
 				      ultra_mem->ultra_ul_memif_id);
 
-	// clear pending dl irq
-	regmap_write(afe->regmap, irq_data_dl->irq_clr_reg,
-		     1 << irq_data_dl->irq_clr_shift);
-
-	// clear pending ul irq
-	regmap_write(afe->regmap, irq_data_ul->irq_clr_reg,
-		     1 << irq_data_ul->irq_clr_shift);
+	mtk_ultra_clr_irq(afe, irq_data_dl);
+	mtk_ultra_clr_irq(afe, irq_data_ul);
 
 	// Set dl&ul irq to ap
 	set_afe_dl_irq_target(false);
 	set_afe_ul_irq_target(false);
 
-	// stop scp
-	if (scp_ultra->usnd_state == SCP_ULTRA_STATE_START) {
-		ultra_ipi_send(AUDIO_TASK_USND_MSG_ID_STOP,
-			       true,
-			       0,
-			       NULL,
-			       ULTRA_IPI_NEED_ACK);
-		scp_ultra->usnd_state = SCP_ULTRA_STATE_STOP;
-	}
 	return 0;
 }
 
@@ -814,6 +825,11 @@ static int mtk_scp_ultra_pcm_new(struct snd_soc_component *component)
 	pcm_dump_switch = false;
 	scp_ultra->usnd_state = SCP_ULTRA_STATE_IDLE;
 	register_ultra_afe_hw_free_notifier(&ultra_afe_hw_free_notifier);
+	if (of_property_read_bool(scp_ultra->dev->of_node, "ultra-toggle-clr-irq"))
+		toggle_clr_irq = true;
+	else
+		toggle_clr_irq = false;
+
 	return ret;
 }
 

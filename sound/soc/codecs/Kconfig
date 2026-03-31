@@ -159,4 +159,36 @@ config SND_SOC_MT6681_ACCDET
 	  detection mechanism. Select N if you don't
 	  have jack on board.
 
+#type-c switch device configuration
+config AUDIO_TYPEC_SWITCH
+	tristate "TYPE-C switch for MediaTek MT6369 ACCDET driver"
+	depends on I2C
+	help
+	  TYPE-C switch for ACCDET means Accessory Detection technology,
+	  MediaTek develop it for ASoC codec soc-jack
+	  detection mechanism. Select N if you don't
+	  have jack on board.
+
+#switch headset class
+config SWITCH
+	tristate "Switch class support"
+	help
+	  Say Y here to enable switch class support. This allows
+	  monitoring switches by userspace via sysfs and uevent.
+
+config SND_SMARTPA_TFA9865
+	tristate "NXP TFA9865 speaker amplifier"
+	depends on I2C
+	help
+	  Config of TFA9865. It is a Smart power
+	  amplifier which contain speaker protection,
+	  multi-band DRC, equalizer function. It would
+	  be set to yes if device with TFA9865 on it.
+
+config SND_SMARTPA_SIA91XX
+	tristate "SoC Audio for si-in SIPA"
+	depends on I2C
+	help
+	  This option enables support for SIPA
+
 endmenu
