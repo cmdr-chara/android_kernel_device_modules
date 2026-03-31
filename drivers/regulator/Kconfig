@@ -196,5 +196,36 @@ config REGULATOR_MT6878_ALPHA_SUPPORT
 	  To compile this dirver for used touch IC.
 	  Set Y or M to select this feature for specific platform-mt6878,
 	  and set N to disable.
+
+config REGULATOR_WL2866D
+        tristate "Fairchild WL2866D Regulator"
+        depends on I2C && (OF || COMPILE_TEST)
+        select REGMAP_I2C
+        help
+          This driver supports Fairchild (WILL Semiconductor) WL2866D
+          regulator. The regulator is a programmable power management IC
+          (PMIC), it is controlled by I2C and provides one BUCK, one BOOST
+          and four LDO outputs.
+
+config REGULATOR_SGM38121
+        tristate "Fairchild SGM38121 Regulator"
+        depends on I2C && (OF || COMPILE_TEST)
+        select REGMAP_I2C
+        help
+          This driver supports Fairchild (WILL Semiconductor) SGM38121
+          regulator. The regulator is a programmable power management IC
+          (PMIC), it is controlled by I2C and provides one BUCK, one BOOST
+          and four LDO outputs.
+
+config REGULATOR_ET5904
+        tristate "Fairchild ET5904 Regulator"
+        depends on I2C && (OF || COMPILE_TEST)
+        select REGMAP_I2C
+        help
+          This driver supports Fairchild (ETEK Semiconductor) ET5904
+          regulator. The regulator is a programmable power management IC
+          (PMIC), it is controlled by I2C and provides one BUCK, one BOOST
+          and four LDO outputs.
+
 endif
 
