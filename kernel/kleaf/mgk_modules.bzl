@@ -1,8 +1,6 @@
 load("//kernel-6.1:modules.bzl", "get_gki_modules_list")
 
-mgk_module_outs = get_gki_modules_list("arm64")
-
-mgk_module_ext_outs = [
+mgk_module_outs = get_gki_modules_list("arm64") + [
     "drivers/firmware/arm_ffa/ffa-module.ko",
     "drivers/gpu/drm/display/drm_display_helper.ko",
     "drivers/gpu/drm/drm_dma_helper.ko",
@@ -20,15 +18,15 @@ mgk_module_ext_outs = [
     "net/mac80211/mac80211.ko",
 ]
 
-mgk_module_eng_outs = mgk_module_ext_outs + [
+mgk_module_eng_outs = [
     "fs/pstore/pstore_blk.ko",
     "fs/pstore/pstore_zone.ko",
 ]
 
-mgk_module_userdebug_outs = mgk_module_ext_outs + [
+mgk_module_userdebug_outs = [
     "fs/pstore/pstore_blk.ko",
     "fs/pstore/pstore_zone.ko",
 ]
 
-mgk_module_user_outs = mgk_module_ext_outs + [
+mgk_module_user_outs = [
 ]
