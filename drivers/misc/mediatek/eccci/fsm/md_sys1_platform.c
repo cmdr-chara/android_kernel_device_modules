@@ -36,6 +36,7 @@
 #include "modem_secure_base.h"
 #include "modem_reg_base.h"
 #include "ap_md_reg_dump.h"
+#include "ccci_fsm.h"
 
 #if IS_ENABLED(CONFIG_MTK_PBM)
 #include "mtk_pbm.h"
@@ -408,6 +409,11 @@ static void md_gpio_driving_dump(void)
  */
 static void md_source_info_dump(void)
 {
+	if (in_interrupt()) {
+		CCCI_MEM_LOG_TAG(0, TAG, "In interrupt, skip dump md source info.\n");
+		return;
+	}
+
 	/*step1. md hw status only 6989 need */
 	if (ap_plat_info == 6989)
 		md_hw_status_dump();
@@ -906,6 +912,8 @@ static int md_cd_power_off(struct ccci_modem *md, unsigned int timeout)
 	CCCI_NORMAL_LOG(0, TAG,
 		"[POWER OFF] MD MTCMOS OFF end: ret = %d\n", ret);
 
+	/* mtcmos off done, unblock md block io */
+	ccci_ufs_io_operate(0);
 	/* mtcmos off done, then delay 4ms, gen99 spec request */
 	if (md_cd_plat_val_ptr.md_gen == 6299) {
 		mdelay(4);
