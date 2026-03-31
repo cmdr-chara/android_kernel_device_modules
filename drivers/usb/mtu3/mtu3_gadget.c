@@ -856,6 +856,8 @@ int mtu3_gadget_setup(struct mtu3 *mtu)
 
 void mtu3_gadget_cleanup(struct mtu3 *mtu)
 {
+	/* P16 code for charge:HQFEAT-102878 by p-hankang1 at 20250630*/
+	mtu->is_gedget_suspend = false;
 	usb_del_gadget_udc(&mtu->g);
 }
 
@@ -865,6 +867,8 @@ void mtu3_gadget_resume(struct mtu3 *mtu)
 	if (mtu->async_callbacks && mtu->gadget_driver &&
 			mtu->gadget_driver->resume) {
 		spin_unlock(&mtu->lock);
+		/* P16 code for charge:HQFEAT-102878 by p-hankang1 at 20250630*/
+		mtu->is_gedget_suspend = false;
 		mtu->gadget_driver->resume(&mtu->g);
 		spin_lock(&mtu->lock);
 	}
@@ -877,6 +881,8 @@ void mtu3_gadget_suspend(struct mtu3 *mtu)
 	if (mtu->async_callbacks && mtu->gadget_driver &&
 			mtu->gadget_driver->suspend) {
 		spin_unlock(&mtu->lock);
+		/* P16 code for charge:HQFEAT-102878 by p-hankang1 at 20250630*/
+		mtu->is_gedget_suspend = true;
 		mtu->gadget_driver->suspend(&mtu->g);
 		spin_lock(&mtu->lock);
 	}
@@ -889,6 +895,8 @@ void mtu3_gadget_disconnect(struct mtu3 *mtu)
 	if (mtu->async_callbacks && mtu->gadget_driver &&
 			mtu->gadget_driver->disconnect) {
 		spin_unlock(&mtu->lock);
+		/* P16 code for charge:HQFEAT-102878 by p-hankang1 at 20250630*/
+		mtu->is_gedget_suspend = false;
 		mtu->gadget_driver->disconnect(&mtu->g);
 		spin_lock(&mtu->lock);
 	}
@@ -901,6 +909,8 @@ void mtu3_gadget_reset(struct mtu3 *mtu)
 {
 	dev_info(mtu->dev, "gadget RESET\n");
 
+	/* P16 code for charge:HQFEAT-102878 by p-hankang1 at 20250630*/
+	mtu->is_gedget_suspend = false;
 	/* report disconnect, if we didn't flush EP state */
 	if (mtu->g.speed != USB_SPEED_UNKNOWN)
 		mtu3_gadget_disconnect(mtu);

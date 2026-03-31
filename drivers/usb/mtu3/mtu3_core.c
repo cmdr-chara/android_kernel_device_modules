@@ -78,8 +78,9 @@ static void mtu3_vbus_draw_work(struct work_struct *data)
 	union power_supply_propval val;
 	int ret;
 
+	/* P16 code for charge:HQFEAT-102878 by p-hankang1 at 20250630*/
 	val.intval = mtu->is_active &&	!(mtu->vbus_draw > USB_SELF_POWER_VBUS_MAX_DRAW) &&
-			!mtu3_is_usb_pd(mtu);
+			(!mtu3_is_usb_pd(mtu) || mtu->is_gedget_suspend);
 
 	if (mtu->is_power_limit != val.intval) {
 		ret = power_supply_set_property(mtu->usb_psy,
@@ -90,8 +91,9 @@ static void mtu3_vbus_draw_work(struct work_struct *data)
 			dev_info(mtu->dev, "%s set property error:%d\n", __func__, ret);
 	}
 
-	dev_info(mtu->dev, "%s %d mA, is_limit %d\n",
-		__func__, mtu->vbus_draw, mtu->is_power_limit);
+	/* P16 code for charge:HQFEAT-102878 by p-hankang1 at 20250630*/
+	dev_info(mtu->dev, "%s %d mA, is_limit %d, is_active = %d, val = %d\n",
+		__func__, mtu->vbus_draw, mtu->is_power_limit, mtu->is_active, val.intval);
 }
 
 int mtu3_gadget_vbus_draw(struct usb_gadget *g, unsigned int mA)

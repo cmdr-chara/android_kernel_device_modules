@@ -462,6 +462,8 @@ struct mtu3 {
 	const char *typec_name;
 	const char *typec_port_name;
 	struct typec_port *typec_port;
+	/* P16 code for charge:HQFEAT-102878 by p-hankang1 at 20250630*/
+	bool is_gedget_suspend;
 };
 
 /* struct ssusb_offload */
