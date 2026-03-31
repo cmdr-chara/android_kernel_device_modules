@@ -853,7 +853,40 @@ static long _flashlight_ioctl(
 			return -ENOTTY;
 		}
 		break;
-
+	case XIAOMI_FLASH_GET_HWINFO_STEP:
+		if (fdev->ops) {
+			pr_info("XIAOMI_FLASH_GET_HWINFO_STEP\n");
+			ret = fdev->ops->flashlight_ioctl(
+					cmd, (unsigned long)&fl_dev_arg);
+			fl_arg.arg = fl_dev_arg.arg;
+			if (copy_to_user((void __user *)arg, (void *)&fl_arg,
+					sizeof(struct flashlight_user_arg))) {
+				pr_info("Failed to copy arg to user cmd:%d\n",
+					_IOC_NR(cmd));
+				return -EFAULT;
+			}
+		} else {
+			pr_info("Failed with no flashlight ops\n");
+			return -ENOTTY;
+		}
+		break;
+	case XIAOMI_FLASH_GET_HWINFO_MIN:
+		if (fdev->ops) {
+			pr_info("XIAOMI_FLASH_GET_HWINFO_MIN\n");
+			ret = fdev->ops->flashlight_ioctl(
+					cmd, (unsigned long)&fl_dev_arg);
+			fl_arg.arg = fl_dev_arg.arg;
+			if (copy_to_user((void __user *)arg, (void *)&fl_arg,
+					sizeof(struct flashlight_user_arg))) {
+				pr_info("Failed to copy arg to user cmd:%d\n",
+					_IOC_NR(cmd));
+				return -EFAULT;
+			}
+		} else {
+			pr_info("Failed with no flashlight ops\n");
+			return -ENOTTY;
+		}
+		break;
 	default:
 		if (fdev->ops)
 			ret = fdev->ops->flashlight_ioctl(
@@ -1735,6 +1768,7 @@ static int fl_uninit(void)
 
 static int fl_parse_dt(struct device *dev)
 {
+#ifdef CONFIG_MTK_FLASHLIGHT_DLPT
 	struct device_node *np;
 
 	if (!dev || !dev->of_node)
@@ -1751,7 +1785,7 @@ static int fl_parse_dt(struct device *dev)
 
 	pr_info("Parse dt pt=(%u,%u,%u).\n",
 		pt_low_bat_level, pt_bat_pc_level, pt_bat_oc_level);
-
+#endif
 	return 0;
 }
 

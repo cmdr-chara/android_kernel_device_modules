@@ -111,5 +111,8 @@ struct flashlight_user_arg {
 #define FLASH_IOC_GET_HW_FAULT             _IOR(FLASHLIGHT_MAGIC, 250, int)
 #define FLASH_IOC_GET_HW_FAULT2            _IOR(FLASHLIGHT_MAGIC, 251, int)
 
+
+#define XIAOMI_FLASH_GET_HWINFO_STEP       _IOR(FLASHLIGHT_MAGIC, 1005, int)
+#define XIAOMI_FLASH_GET_HWINFO_MIN        _IOR(FLASHLIGHT_MAGIC, 1006, int)
 #endif /* _FLASHLIGHT_H */
 
