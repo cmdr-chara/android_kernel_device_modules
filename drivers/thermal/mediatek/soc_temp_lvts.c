@@ -1552,7 +1552,6 @@ static int lvts_probe(struct platform_device *pdev)
 	ret = lvts_register_thermal_zones(lvts_data);
 	if (ret)
 		return ret;
-
 	return 0;
 }
 
