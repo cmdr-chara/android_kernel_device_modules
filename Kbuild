@@ -8,6 +8,8 @@ subdir-ccflags-y += -Werror \
 		-I$(srctree)/$(src)/include \
 		-I$(srctree)/$(src)/include/uapi \
 
+obj-y += block/cpq/
+
 obj-y += drivers/memory/
 
 obj-y += drivers/iio/adc/
@@ -90,12 +92,20 @@ obj-y += drivers/usb/
 
 obj-y += drivers/devfreq/
 
+obj-y += drivers/misc/xiaomi/
+
 obj-y += drivers/misc/mediatek/
+
+obj-y += drivers/misc/hqsysfs/
+
+obj-y += drivers/misc/xiaomi/
 
 obj-y += sound/soc/codecs/
 
 obj-y += sound/soc/mediatek/
 
 obj-y += drivers/pci/controller/
+
+obj-y += drivers/input/fingerprint/
 
 endif

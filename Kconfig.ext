@@ -8,6 +8,15 @@ config DEVICE_MODULES_ALLOW_BUILTIN
 	  into the kernel image.
 	  If unsure, say N.
 
+config FACTORY_BUILD
+	bool "distiguish factory version from dev version"
+	default n
+	help
+		This macro will be defined when build factory version. It is used to
+		distinguish factory and dev codes in kernel.
+
+source "$(KCONFIG_EXT_PREFIX)block/cpq/Kconfig"
+
 source "$(KCONFIG_EXT_PREFIX)drivers/memory/Kconfig"
 
 source "$(KCONFIG_EXT_PREFIX)drivers/iio/adc/Kconfig"
@@ -92,6 +101,10 @@ source "$(KCONFIG_EXT_PREFIX)drivers/devfreq/Kconfig"
 
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/Kconfig"
 
+source "$(KCONFIG_EXT_PREFIX)drivers/misc/xiaomi/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/misc/hqsysfs/Kconfig"
+
 source "$(KCONFIG_EXT_PREFIX)sound/soc/codecs/Kconfig"
 
 source "$(KCONFIG_EXT_PREFIX)sound/soc/mediatek/Kconfig"
@@ -101,5 +114,7 @@ source "$(KCONFIG_EXT_PREFIX)drivers/pci/controller/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/pinctrl/Kconfig"
 
 source "$(KCONFIG_EXT_PREFIX)drivers/media/platform/mtk-isp/Kconfig"
+
+source "$(KCONFIG_EXT_PREFIX)drivers/input/fingerprint/Kconfig"
 
 source "$(KCONFIG_EXT_PREFIX)fs/f2fs/Kconfig"
