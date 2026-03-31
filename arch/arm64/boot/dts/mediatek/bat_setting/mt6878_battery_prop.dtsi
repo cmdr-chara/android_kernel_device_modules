@@ -13,7 +13,7 @@
 	keep-100-percent = <(1)>;
 	curr-measure-20a = <(0)>;
 	unit-multiple = <(1)>;
-	r-fg-value = <(1)>;
+	r-fg-value = <(2)>;
 	/* Rsense resistance */
 	embedded-sel = <(0)>;
 	/* Configures whether using embedded battery or not */

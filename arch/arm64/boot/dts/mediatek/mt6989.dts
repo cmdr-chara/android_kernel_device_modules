@@ -1342,6 +1342,7 @@
 	mcupm: mcupm@c070000 {
 		compatible = "mediatek,mcupm";
 		mbox-extend = <16>;
+		mpmm-node-support = <1>;
 		reg = <0 0x0c070000 0 0x50000>,
 			  <0 0x0c0df600 0 0xa0>,
 			  <0 0x0c072004 0 0x4>,
@@ -1490,12 +1491,12 @@
 		interrupts = <GIC_PPI 7 IRQ_TYPE_LEVEL_HIGH &ppi_cluster2>;
 	};
 	pmu_hunter_elp: pmu-hunter-elp {
-		compatible = "arm,armv8-pmuv3";
+		compatible = "arm,cortex-x2-pmu";
 		interrupt-parent = <&gic>;
 		interrupts = <GIC_PPI 7 IRQ_TYPE_LEVEL_HIGH &ppi_cluster1>;
 	};
 	pmu_hunter: pmu-hunter {
-		compatible = "arm,armv8-pmuv3";
+		compatible = "arm,cortex-a710-pmu";
 		interrupt-parent = <&gic>;
 		interrupts = <GIC_PPI 7 IRQ_TYPE_LEVEL_HIGH &ppi_cluster0>;
 	};
@@ -1731,6 +1732,7 @@
 		clock-div = <1>;
 		scl-gpio-id = <98>;
 		sda-gpio-id = <99>;
+		mediatek,fifo-use-polling;
 	};
 
 	i2c6: i2c@11f01000 {
@@ -2839,6 +2841,7 @@
 		reg = <0 0x1a005000 0 0x1000>;
 		mediatek,smi-supply = <&smi_disp_common 0>;
 		mediatek,common-id = <26>;
+		flow-ctrl-dbg;
 		power-domains = <&scpsys MT6989_POWER_DOMAIN_CAM_MAIN>;
 		clocks = <&camsys_main_clk CLK_CAM_MAIN_CAM2MM0_GALS>;
 		clock-names = "apb";
@@ -2850,6 +2853,7 @@
 		reg = <0 0x1a006000 0 0x1000>;
 		mediatek,smi-supply = <&smi_mdp_common 0>;
 		mediatek,common-id = <27>;
+		flow-ctrl-dbg;
 		power-domains = <&scpsys MT6989_POWER_DOMAIN_CAM_MAIN>;
 		clocks = <&camsys_main_clk CLK_CAM_MAIN_CAM2MM1_GALS>;
 		clock-names = "apb";
@@ -2861,6 +2865,7 @@
 		reg = <0 0x1b203000 0 0x1000>;
 		mediatek,smi-supply = <&smi_mdp_common 0>;
 		mediatek,common-id = <28>;
+		flow-ctrl-dbg;
 		power-domains = <&scpsys MT6989_POWER_DOMAIN_CAM_VCORE>;
 		clocks = <&cam_vcore_clk CLK_CAM_V_MM0_SUBCOMM>;
 		clock-names = "apb";
@@ -2904,6 +2909,7 @@
 			"mediatek,mt6989-smi-larb", "mediatek,smi-larb";
 		reg = <0 0x1a026000 0 0x1000>;
 		mediatek,smi-supply = <&smi_cam_sub_comm0 0>;
+		mediatek,comm-port-id = <0>;
 		mediatek,larb-id = <16>;
 		power-domains = <&scpsys MT6989_POWER_DOMAIN_CAM_SUBA>;
 		clocks = <&camsys_main_clk CLK_CAM_MAIN_CAM_SUBA>,
@@ -2916,6 +2922,7 @@
 			"mediatek,mt6989-smi-larb", "mediatek,smi-larb";
 		reg = <0 0x1a028000 0 0x1000>;
 		mediatek,smi-supply = <&smi_cam_sub_comm2 0>;
+		mediatek,comm-port-id = <1>;
 		mediatek,larb-id = <43>;
 		power-domains = <&scpsys MT6989_POWER_DOMAIN_CAM_SUBB>;
 		clocks = <&camsys_main_clk CLK_CAM_MAIN_CAM_SUBB>,
@@ -2928,6 +2935,7 @@
 			"mediatek,mt6989-smi-larb", "mediatek,smi-larb";
 		reg = <0 0x1a02a000 0 0x1000>;
 		mediatek,smi-supply = <&smi_cam_sub_comm0 0>;
+		mediatek,comm-port-id = <1>;
 		mediatek,larb-id = <44>;
 		power-domains = <&scpsys MT6989_POWER_DOMAIN_CAM_SUBC>;
 		clocks = <&camsys_main_clk CLK_CAM_MAIN_CAM_SUBC>,
@@ -2940,6 +2948,7 @@
 			"mediatek,mt6989-smi-larb", "mediatek,smi-larb";
 		reg = <0 0x1a027000 0 0x1000>;
 		mediatek,smi-supply = <&smi_cam_sub_comm2 0>;
+		mediatek,comm-port-id = <2>;
 		mediatek,larb-id = <17>;
 		power-domains = <&scpsys MT6989_POWER_DOMAIN_CAM_SUBA>;
 		clocks = <&camsys_main_clk CLK_CAM_MAIN_CAM_SUBA>,
@@ -2952,6 +2961,7 @@
 			"mediatek,mt6989-smi-larb", "mediatek,smi-larb";
 		reg = <0 0x1a029000 0 0x1000>;
 		mediatek,smi-supply = <&smi_cam_sub_comm0 0>;
+		mediatek,comm-port-id = <2>;
 		mediatek,larb-id = <45>;
 		power-domains = <&scpsys MT6989_POWER_DOMAIN_CAM_SUBB>;
 		clocks = <&camsys_main_clk CLK_CAM_MAIN_CAM_SUBB>,
@@ -2964,6 +2974,7 @@
 			"mediatek,mt6989-smi-larb", "mediatek,smi-larb";
 		reg = <0 0x1a02b000 0 0x1000>;
 		mediatek,smi-supply = <&smi_cam_sub_comm2 0>;
+		mediatek,comm-port-id = <3>;
 		mediatek,larb-id = <46>;
 		power-domains = <&scpsys MT6989_POWER_DOMAIN_CAM_SUBC>;
 		clocks = <&camsys_main_clk CLK_CAM_MAIN_CAM_SUBC>,
@@ -4166,7 +4177,9 @@
 				<0xe80 0x1 1>,
 				<0xe80 0x0 1>;
 			mask =  <0xe00 0x2 1>,
-				<0xe80 0x2 1>;
+				<0xe80 0x2 1>,
+				<0xe40 0x2 1>,
+				<0xec0 0x2 1>;
 			clear-md = <0xe40 0x1 1>,
 				   <0xe40 0x0 1>,
 				   <0xec0 0x1 1>,
@@ -4189,7 +4202,9 @@
 				<0xe80 0x1 1>,
 				<0xe80 0x0 1>;
 			mask =  <0xe00 0x2 1>,
-				<0xe80 0x2 1>;
+				<0xe80 0x2 1>,
+				<0xe40 0x2 1>,
+				<0xec0 0x2 1>;
 			clear-md = <0xe40 0x1 1>,
 				   <0xe40 0x0 1>,
 				   <0xec0 0x1 1>,
@@ -4208,7 +4223,9 @@
 			dump = <0xc00 0xc04 0xc10 0xc14>;
 			clear = <0x410 0x1 1>,
 				<0x410 0x0 1>;
-			mask =  <0x410 0x2 1>;
+			mask =  <0x410 0x2 1>,
+				<0xe40 0x2 1>,
+				<0xec0 0x2 1>;
 			clear-md = <0xe40 0x1 1>,
 				   <0xe40 0x0 1>,
 				   <0xec0 0x1 1>,
@@ -4224,7 +4241,9 @@
 			dump = <0xc00 0xc04 0xc10 0xc14>;
 			clear = <0x410 0x1 1>,
 				<0x410 0x0 1>;
-			mask =  <0x410 0x2 1>;
+			mask =  <0x410 0x2 1>,
+				<0xe40 0x2 1>,
+				<0xec0 0x2 1>;
 			clear-md = <0xe40 0x1 1>,
 				   <0xe40 0x0 1>,
 				   <0xec0 0x1 1>,
@@ -7043,6 +7062,7 @@
 			fifo-size-uv-2plane = <400>;
 			fifo-size-3plane = <797>;
 			fifo-size-uv-3plane = <198>;
+			is-cwb = <1>;
 			mediatek,larb = <&smi_larb33>;
 			mediatek,smi-id = <33>;
 			mtk,smmu-shared = <&mm_smmu_hrt_normal>;
@@ -7380,6 +7400,7 @@
 			fifo-size-uv-2plane = <0>;
 			fifo-size-3plane = <0>;
 			fifo-size-uv-3plane = <0>;
+			is-cwb = <2>;
 			mediatek,larb = <&smi_larb1>;
 			mediatek,smi-id = <1>;
 			mtk,smmu-shared = <&mm_smmu_hrt_normal>;
@@ -8883,6 +8904,7 @@
 			venc-mmdvfs-in-adaptive = <1>;
 			venc-slb-cpu-used-perf = <62208000>;
 			venc-cpu-hint-mode = <2>; /* cpu grp awr mode */
+			venc-slb-used-extra-size = <3000>;
 			port-arg-num = <3>;
 			port-def = <0 SMMU_L7_P0_VENC_RCPU 0>,
 				<0 SMMU_L7_P1_VENC_REC 0>,
@@ -11152,8 +11174,10 @@
 				<&mmqos MASTER_LARB_PORT(SMMU_L3_P0_MDP_RDMA0)
 					&mmqos SLAVE_COMMON(1)>,
 				<&mmqos MASTER_LARB_PORT(MTK_SMMU_PORT_ID(48, 0))
+					&mmqos SLAVE_COMMON(1)>,
+				<&mmqos SLAVE_LARB(48)
 					&mmqos SLAVE_COMMON(1)>;
-			interconnect-names = "mml_dma", "mml_dma_dpc";
+			interconnect-names = "mml_dma", "mml_dma_dpc", "mml_dma_hrt";
 			mmqos-supply = <&mmqos>;
 		};
 
@@ -11236,8 +11260,10 @@
 				<&mmqos MASTER_LARB_PORT(SMMU_L3_P1_MDP_WROT0)
 					&mmqos SLAVE_COMMON(1)>,
 				<&mmqos MASTER_LARB_PORT(MTK_SMMU_PORT_ID(48, 1))
+					&mmqos SLAVE_COMMON(1)>,
+				<&mmqos SLAVE_LARB(48)
 					&mmqos SLAVE_COMMON(1)>;
-			interconnect-names = "mml_dma", "mml_dma_dpc";
+			interconnect-names = "mml_dma", "mml_dma_dpc", "mml_dma_hrt";
 			mmqos-supply = <&mmqos>;
 		};
 
@@ -11257,8 +11283,10 @@
 				<&mmqos MASTER_LARB_PORT(SMMU_L3_P4_MDP_RDMA2)
 					&mmqos SLAVE_COMMON(1)>,
 				<&mmqos MASTER_LARB_PORT(MTK_SMMU_PORT_ID(48, 4))
+					&mmqos SLAVE_COMMON(1)>,
+				<&mmqos SLAVE_LARB(48)
 					&mmqos SLAVE_COMMON(1)>;
-			interconnect-names = "mml_dma", "mml_dma_dpc";
+			interconnect-names = "mml_dma", "mml_dma_dpc", "mml_dma_hrt";
 			mmqos-supply = <&mmqos>;
 		};
 
@@ -11287,8 +11315,10 @@
 				<&mmqos MASTER_LARB_PORT(SMMU_L3_P5_MDP_WROT2)
 					&mmqos SLAVE_COMMON(1)>,
 				<&mmqos MASTER_LARB_PORT(MTK_SMMU_PORT_ID(48, 5))
+					&mmqos SLAVE_COMMON(1)>,
+				<&mmqos SLAVE_LARB(48)
 					&mmqos SLAVE_COMMON(1)>;
-			interconnect-names = "mml_dma", "mml_dma_dpc";
+			interconnect-names = "mml_dma", "mml_dma_dpc", "mml_dma_hrt";
 			mmqos-supply = <&mmqos>;
 		};
 
@@ -11323,8 +11353,10 @@
 				<&mmqos MASTER_LARB_PORT(SMMU_L3_P2_MDP_RROT0)
 					&mmqos SLAVE_COMMON(1)>,
 				<&mmqos MASTER_LARB_PORT(MTK_SMMU_PORT_ID(48, 2))
+					&mmqos SLAVE_COMMON(1)>,
+				<&mmqos SLAVE_LARB(48)
 					&mmqos SLAVE_COMMON(1)>;
-			interconnect-names = "mml_dma", "mml_dma_dpc";
+			interconnect-names = "mml_dma", "mml_dma_dpc", "mml_dma_hrt";
 			mmqos-supply = <&mmqos>;
 		};
 
@@ -11345,8 +11377,10 @@
 				<&mmqos MASTER_LARB_PORT(SMMU_L3_P3_MDP_RROT0_2ND)
 					&mmqos SLAVE_COMMON(1)>,
 				<&mmqos MASTER_LARB_PORT(MTK_SMMU_PORT_ID(48, 3))
+					&mmqos SLAVE_COMMON(1)>,
+				<&mmqos SLAVE_LARB(48)
 					&mmqos SLAVE_COMMON(1)>;
-			interconnect-names = "mml_dma", "mml_dma_dpc";
+			interconnect-names = "mml_dma", "mml_dma_dpc", "mml_dma_hrt";
 			mmqos-supply = <&mmqos>;
 		};
 
@@ -14807,20 +14841,26 @@ TOP_LDRO7,TOP_LDRO8,TOP_LDRO9,TOP_LDRO10,TOP_LDRO11,TOP_LDRO12,TOP_LDRO13,TOP_LD
 		battery0-path-rac-t1 = <80>;
 		battery0-path-rdc-t2 = <200>;
 		battery0-path-rac-t2 = <120>;
+		battery0-path-rdc-t3 = <200>;
+		battery0-path-rac-t3 = <120>;
 		battery1-path-rdc-t0 = <95>;
 		battery1-path-rac-t0 = <65>;
 		battery1-path-rdc-t1 = <110>;
 		battery1-path-rac-t1 = <80>;
 		battery1-path-rdc-t2 = <200>;
 		battery1-path-rac-t2 = <120>;
+		battery1-path-rdc-t3 = <200>;
+		battery1-path-rac-t3 = <120>;
 		battery2-path-rdc-t0 = <95>;
 		battery2-path-rac-t0 = <65>;
 		battery2-path-rdc-t1 = <110>;
 		battery2-path-rac-t1 = <80>;
 		battery2-path-rdc-t2 = <200>;
 		battery2-path-rac-t2 = <120>;
-		max-temperature-stage = <2>;
-		temperature-threshold = <10 0>;
+		battery2-path-rdc-t3 = <200>;
+		battery2-path-rac-t3 = <120>;
+		max-temperature-stage = <3>;
+		temperature-threshold = <25 10 0>;
 		system-ocp = <13000>;
 		system-uvlo = <2600>;
 
@@ -15254,23 +15294,27 @@ TOP_LDRO7,TOP_LDRO8,TOP_LDRO9,TOP_LDRO10,TOP_LDRO11,TOP_LDRO12,TOP_LDRO13,TOP_LD
 		thd-volts-l = <
 			3900 3100 2900
 			4400 3900 3100
-			4900 4800 4400>;
+			4900 4800 4400
+			5000 4900 4800>;
 		thd-volts-h = <
 			3950 3900 3100
 			4500 4400 3900
-			5000 4900 4800>;
+			5000 4900 4800
+			5100 5000 4900>;
 		thd-volts-l-2s = <
 			3400 3100 2900
 			4400 3400 3100
-			4900 4800 4400>;
+			4900 4800 4400
+			5000 4900 4800>;
 		thd-volts-h-2s = <
 			3500 3400 3100
 			4500 4400 3400
-			5000 4900 4800>;
+			5000 4900 4800
+			5100 5000 4900>;
 		lvsys-thd-volt-l = <2900>;
 		lvsys-thd-volt-h = <3100>;
-		temperature-max-stage = <2>;
-		temperature-stage-threshold = <11 0>;
+		temperature-max-stage = <3>;
+		temperature-stage-threshold = <25 10 0>;
 	};
 
 	pbm: pbm {
@@ -18200,7 +18244,7 @@ tboard_thermistor1: thermal-ntc1@1cc00554 {
 			tcpc,en-wd;
 			// tcpc,en-wd-dual-port;
 			tcpc,en-ctd;
-			tcpc,en-fod;
+			// tcpc,en-fod;
 			tcpc,en-typec-otp;
 			// tcpc,en-floatgnd;
 			wd,sbu-calib-init = <1200>;	/* mV */
@@ -18249,18 +18293,18 @@ tboard_thermistor1: thermal-ntc1@1cc00554 {
 				pd,sink-pdo-data = <0x000190c8>;
 
 				/*
-				 * No DP, host + device
+				 * No DP Sink capability
 				 *	pd,id-vdo-size = <6>;
 				 *	pd,id-vdo-data = <0xd14029cf 0x0 0x63750000
 							  0x61000000 0x0 0x41000000>;
-				 * With DP
+				 * With DP Sink capability
 				 *	pd,id-vdo-size = <6>;
 				 *	pd,id-vdo-data = <0xd54029cf 0x0 0x63750000
 							  0x61000000 0x0 0x41000000>;
 				 */
 
 				pd,id-vdo-size = <6>;
-				pd,id-vdo-data = <0xd54029cf 0x0 0x63750000
+				pd,id-vdo-data = <0xd14029cf 0x0 0x63750000
 						  0x61000000 0x0 0x41000000>;
 
 				bat,nr = <1>;
@@ -18281,6 +18325,7 @@ tboard_thermistor1: thermal-ntc1@1cc00554 {
 				// local-give-back;
 				local-no-suspend;
 
+				/* With DP Source capability */
 				attempt-enter-dp-mode;
 				// attempt-discover-cable;
 				// attempt-discover-id;

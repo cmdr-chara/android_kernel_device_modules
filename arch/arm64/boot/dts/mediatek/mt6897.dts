@@ -6372,7 +6372,9 @@
 				<0xe80 0x1 1>,
 				<0xe80 0x0 1>;
 			mask =  <0xe00 0x2 1>,
-				<0xe80 0x2 1>;
+				<0xe80 0x2 1>,
+				<0xe40 0x2 1>,
+				<0xec0 0x2 1>;
 			clear-md = <0xe40 0x1 1>,
 				   <0xe40 0x0 1>,
 				   <0xec0 0x1 1>,
@@ -6394,7 +6396,9 @@
 				<0xe80 0x1 1>,
 				<0xe80 0x0 1>;
 			mask =  <0xe00 0x2 1>,
-				<0xe80 0x2 1>;
+				<0xe80 0x2 1>,
+				<0xe40 0x2 1>,
+				<0xec0 0x2 1>;
 			clear-md = <0xe40 0x1 1>,
 				   <0xe40 0x0 1>,
 				   <0xec0 0x1 1>,
@@ -6412,7 +6416,9 @@
 			dump = <0xc00 0xc04 0xc10 0xc14>;
 			clear = <0x410 0x1 1>,
 				<0x410 0x0 1>;
-			mask =  <0x410 0x2 1>;
+			mask =  <0x410 0x2 1>,
+				<0xe40 0x2 1>,
+				<0xec0 0x2 1>;
 			clear-md = <0xe40 0x1 1>,
 				   <0xe40 0x0 1>,
 				   <0xec0 0x1 1>,
@@ -6427,7 +6433,9 @@
 			dump = <0xc00 0xc04 0xc10 0xc14>;
 			clear = <0x410 0x1 1>,
 				<0x410 0x0 1>;
-			mask =  <0x410 0x2 1>;
+			mask =  <0x410 0x2 1>,
+				<0xe40 0x2 1>,
+				<0xec0 0x2 1>;
 			clear-md = <0xe40 0x1 1>,
 				   <0xe40 0x0 1>,
 				   <0xec0 0x1 1>,
@@ -8008,6 +8016,7 @@
 				<0 0x13fa0000 0 0x400>,   /* MFG_PLL */
 				<0 0x13fa0c00 0 0x400>,   /* MFGSC_PLL */
 				<0 0x13f90000 0 0x10000>, /* MFG_RPC */
+				<0 0x13c62000 0 0xb0>,    /* GPUEB_MBOX */
 				<0 0x1c001000 0 0x1000>,  /* SLEEP */
 				<0 0x10000000 0 0x1000>,  /* TOPCKGEN */
 				<0 0x1021c000 0 0x1000>,  /* NTH_EMICFG */
@@ -8035,6 +8044,7 @@
 				"mfg_pll",
 				"mfgsc_pll",
 				"mfg_rpc",
+				"gpueb_mbox",
 				"sleep",
 				"topckgen",
 				"nth_emicfg",
@@ -10879,25 +10889,25 @@
 				<875967048 244800 4 19>,
 				<875967048 489600 5 20>,
 				<875967048 1044480 12 20>,
-				<875967048 1944000 16 20>,
+				<875967048 2106000 16 20>,
 				<875967048 4294967295 17 20>,
 				<1129727304 108000 1 18>, /* HEVC */
 				<1129727304 244800 2 19>,
 				<1129727304 489600 4 20>,
 				<1129727304 1044480 9 20>,
-				<1129727304 1944000 10 20>,
+				<1129727304 2106000 10 20>,
 				<1129727304 4294967295 11 20>,
 				<892744264 108000 1 18>, /* H.265 */
 				<892744264 244800 2 19>,
 				<892744264 489600 4 20>,
 				<892744264 1044480 9 20>,
-				<892744264 1944000 10 20>,
+				<892744264 2106000 10 20>,
 				<892744264 4294967295 11 20>,
 				<1179206984 108000 1 18>, /* HEIF */
 				<1179206984 244800 2 19>,
 				<1179206984 489600 4 20>,
 				<1179206984 1044480 9 20>,
-				<1179206984 1944000 10 20>,
+				<1179206984 2106000 10 20>,
 				<1179206984 4294967295 11 20>;
 			bandwidth-table =
 				<7 0 335>,
@@ -15939,7 +15949,7 @@ FLL0_out,FLL1_out,FLL4_out,FLL5_out,FLL6_out";
 			tcpc,en-wd;
 			// tcpc,en-wd-dual-port;
 			tcpc,en-ctd;
-			tcpc,en-fod;
+			// tcpc,en-fod;
 			tcpc,en-typec-otp;
 			// tcpc,en-floatgnd;
 			wd,sbu-calib-init = <1200>;	/* mV */
@@ -15988,18 +15998,18 @@ FLL0_out,FLL1_out,FLL4_out,FLL5_out,FLL6_out";
 				pd,sink-pdo-data = <0x000190c8>;
 
 				/*
-				 * No DP, host + device
+				 * No DP Sink capability
 				 *	pd,id-vdo-size = <6>;
 				 *	pd,id-vdo-data = <0xd14029cf 0x0 0x63750000
 							  0x61000000 0x0 0x41000000>;
-				 * With DP
+				 * With DP Sink capability
 				 *	pd,id-vdo-size = <6>;
 				 *	pd,id-vdo-data = <0xd54029cf 0x0 0x63750000
 							  0x61000000 0x0 0x41000000>;
 				 */
 
 				pd,id-vdo-size = <6>;
-				pd,id-vdo-data = <0xd54029cf 0x0 0x63750000
+				pd,id-vdo-data = <0xd14029cf 0x0 0x63750000
 						  0x61000000 0x0 0x41000000>;
 
 				bat,nr = <1>;
@@ -16020,6 +16030,7 @@ FLL0_out,FLL1_out,FLL4_out,FLL5_out,FLL6_out";
 				// local-give-back;
 				local-no-suspend;
 
+				/* With DP Source capability */
 				attempt-enter-dp-mode;
 				// attempt-discover-cable;
 				// attempt-discover-id;
