@@ -113,6 +113,7 @@ static irqreturn_t smpu_isr_vio_hook(struct smpu_reg_info_t *dump, unsigned int 
 	int i;
 	unsigned int srinfo_r = 0, axi_id_r = 0;
 	unsigned int srinfo_w = 0, axi_id_w = 0;
+	unsigned int ori_axi_r = 0, ori_axi_w = 0;
 	bool bypass, result;
 	static DEFINE_RATELIMIT_STATE(ratelimit, 1*HZ, 3);
 
@@ -125,18 +126,23 @@ static irqreturn_t smpu_isr_vio_hook(struct smpu_reg_info_t *dump, unsigned int 
 			srinfo_r = dump[i].value;
 			break;
 		case WRITE_AXI:
-			if (srinfo_w == 3)
+			if (srinfo_w == 3) {
 				axi_id_w |= (dump[i].value & (BIT_MASK(20) - 1));
+				ori_axi_w = dump[i].value;
+			}
 			break;
 		case READ_AXI:
-			if (srinfo_r == 3)
+			if (srinfo_r == 3) {
 				axi_id_r |= (dump[i].value & (BIT_MASK(20) - 1));
+				ori_axi_r = dump[i].value;
+			}
 			break;
 		case WRITE_AXI_MSB:
 			if (srinfo_w == 3) {
 				axi_id_w &= (BIT_MASK(16) - 1);
 				axi_id_w |= ((dump[i].value &
 				(BIT_MASK(4) - 1)) << 16);
+				ori_axi_w = dump[i].value;
 			}
 			break;
 		case READ_AXI_MSB:
@@ -144,6 +150,7 @@ static irqreturn_t smpu_isr_vio_hook(struct smpu_reg_info_t *dump, unsigned int 
 				axi_id_r &= (BIT_MASK(16) - 1);
 				axi_id_r |= ((dump[i].value &
 				(BIT_MASK(4) - 1)) << 16);
+				ori_axi_r = dump[i].value;
 			}
 			break;
 		default:
@@ -167,8 +174,8 @@ static irqreturn_t smpu_isr_vio_hook(struct smpu_reg_info_t *dump, unsigned int 
 
 	if (bypass == true) {
 		if (__ratelimit(&ratelimit)) {
-			pr_info("srinfo_r %d, axi_id_r 0x%x\n", srinfo_r, axi_id_r);
-			pr_info("srinfo_w %d, axi_id_w 0x%x\n", srinfo_w, axi_id_w);
+			pr_info("srinfo_r %d, axi_id_r 0x%x, ori_axi_r 0x%x\n", srinfo_r, axi_id_r, ori_axi_r);
+			pr_info("srinfo_w %d, axi_id_w 0x%x, ori_axi_w 0x%x\n", srinfo_w, axi_id_w, ori_axi_w);
 		}
 	}
 
