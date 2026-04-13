@@ -109,6 +109,5 @@ obj-$(CONFIG_HARDWARE_INFO)    += hardware_info/
 obj-$(CONFIG_MTK_IPS_HELPER) += ips/
 # BSP.System - 2023.9.6 - add simtray status
 obj-$(CONFIG_SIMTRAY_STATUS) += simtray/
-obj-$(CONFIG_MI_WIFI_GPIO)	+= wifi_gpio/
 obj-$(CONFIG_AWINIC_HAPTIC_HV)  += aw_haptic/
 obj-$(CONFIG_SIH_VIBRATOR)  += si_haptic/

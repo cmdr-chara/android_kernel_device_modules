@@ -432,5 +432,4 @@ bootargs_ext = "";
 #include "mediatek/o16_charger.dtsi"
 #include "mediatek/cust_mt6878_nfc_nxp.dtsi"
 #include "mediatek/cust_mt6878_fingerprint.dtsi"
-#include "mediatek/xiaomi_malachite_mt6878_wifi.dtsi"
 /*End of this file, DO NOT ADD ANYTHING HERE*/

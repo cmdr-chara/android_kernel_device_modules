@@ -503,7 +503,6 @@ mgk_64_k61_device_modules = [
     "drivers/misc/mediatek/widevine_drm/widevine_driver.ko",
     "drivers/misc/mediatek/wlcdrv/wlcdrv.ko",
     "drivers/misc/mediatek/simtray/simtray.ko",
-    "drivers/misc/mediatek/wifi_gpio/xiaomi_wifi_gpio.ko",
     "drivers/misc/xiaomi/mi_memory/mi_memory.ko",
     "drivers/mmc/host/cqhci.ko",
     "drivers/mmc/host/mtk-mmc-dbg.ko",
