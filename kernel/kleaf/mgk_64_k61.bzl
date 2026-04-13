@@ -492,6 +492,8 @@ mgk_64_k61_device_modules = [
     "drivers/misc/mediatek/elliptic/elliptic-ultrasound.ko",
     "drivers/misc/mediatek/widevine_drm/widevine_driver.ko",
     "drivers/misc/mediatek/wlcdrv/wlcdrv.ko",
+    "drivers/misc/mediatek/aw_haptic/haptic.ko",
+    "drivers/misc/mediatek/si_haptic/si_haptic.ko",
     "drivers/misc/mediatek/simtray/simtray.ko",
     "drivers/mmc/host/cqhci.ko",
     "drivers/mmc/host/mtk-mmc-dbg.ko",
