@@ -209,6 +209,8 @@ source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/sensor/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/gate_ic/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/usb/Kconfig"
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/mbraink/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/aw_haptic/Kconfig"
+source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/si_haptic/Kconfig"
 # BSP.System - 2024.4.3 - add simtray status
 source "$(KCONFIG_EXT_PREFIX)drivers/misc/mediatek/simtray/Kconfig"
 endmenu # Other Peripheral
