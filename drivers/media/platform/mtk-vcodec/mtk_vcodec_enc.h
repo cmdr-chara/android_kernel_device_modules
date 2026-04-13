@@ -14,6 +14,9 @@
 
 #define isSLB_CPU_USED_PERFORMANCE_USAGE(w, h, fr, throughput) \
 		((((w)*(h)*(fr)) < (throughput)) ? (1) : (0))
+#define isSLB_NEED_EXTRA_SIZE(w, threshold) \
+		(((w) > (threshold)) ? (1) : (0))
+
 /**
  * struct mtk_video_enc_buf - Private data related to each VB2 buffer.
  * @vb: Pointer to related VB2 buffer.
@@ -26,6 +29,7 @@
 #define VENC_FLAG_MULTINAL					0x00000001
 #define VENC_FLAG_ENCODE_TIMEOUT			0x00000002
 #define VENC_FLAG_ENCODE_HWBREAK_TIMEOUT	0x00000004
+#define VENC_FLAG_NAL_LENGTH_BS			0x00000008
 
 struct mtk_video_enc_buf {
 	struct vb2_v4l2_buffer vb;

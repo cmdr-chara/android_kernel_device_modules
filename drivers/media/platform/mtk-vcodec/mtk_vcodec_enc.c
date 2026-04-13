@@ -954,6 +954,13 @@ static int vidioc_venc_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_MTK_CALLING_PID:
 		ctx->cpu_caller_pid = ctrl->val;
 		break;
+	case V4L2_CID_MPEG_MTK_SET_NAL_SIZE_LENGTH:
+		mtk_v4l2_debug(2,
+			"V4L2_CID_MPEG_MTK_SET_NAL_SIZE_LENGTH: Prefer(%d), Bytes(%d)",
+			ctrl->p_new.p_u32[0], ctrl->p_new.p_u32[1]);
+		memcpy(&p->nal_length, ctrl->p_new.p_u32,
+		sizeof(struct mtk_venc_nal_length));
+		break;
 	default:
 		mtk_v4l2_debug(4, "ctrl-id=%d not support!", ctrl->id);
 		ret = -EINVAL;
@@ -1584,6 +1591,7 @@ static void mtk_venc_set_param(struct mtk_vcodec_ctx *ctx,
 	param->visual_quality = &enc_params->visual_quality;
 	param->init_qp = &enc_params->init_qp;
 	param->frame_qp_range = &enc_params->frame_qp_range;
+	param->nal_length = &enc_params->nal_length;
 }
 
 static int vidioc_venc_subscribe_evt(struct v4l2_fh *fh,
@@ -1701,8 +1709,6 @@ static int vidioc_venc_s_fmt_cap(struct file *file, void *priv,
 		}
 		mtk_vcodec_set_state_from(ctx, MTK_STATE_INIT, MTK_STATE_FREE);
 	}
-	// format change, trigger encode header
-	mtk_vcodec_set_state_from(ctx, MTK_STATE_INIT, MTK_STATE_STOP);
 
 	return 0;
 }
@@ -2422,9 +2428,6 @@ static int vb2ops_venc_queue_setup(struct vb2_queue *vq,
 		       q_data->sizeimage[2],
 		       mtk_vcodec_get_state(ctx));
 
-	// previously stream off with task not empty
-	mtk_vcodec_set_state_from(ctx, MTK_STATE_FLUSH, MTK_STATE_STOP);
-
 	return 0;
 }
 
@@ -2802,7 +2805,14 @@ static int vb2ops_venc_start_streaming(struct vb2_queue *q, unsigned int count)
 		(isSLB_CPU_USED_PERFORMANCE_USAGE(q_data_src->visible_width, q_data_src->visible_height,
 		ctx->enc_params.framerate_num/ctx->enc_params.framerate_denom, ctx->dev->enc_slb_cpu_used_perf) &&
 		(ctx->dev->enc_slb_cpu_used_perf > 0) && (ctx->enc_params.operationrate < 120));
-	if ((ctx->use_slbc == 1) && (ctx->enc_params.slbc_cpu_used_performance == 1)) {
+
+	if (ctx->dev->enc_slb_used_extra_size_threshold != 0) {
+		ctx->enc_params.slbc_need_used_extra_size =
+			(isSLB_NEED_EXTRA_SIZE(q_data_src->visible_width, ctx->dev->enc_slb_used_extra_size_threshold));
+	}
+
+	if ((ctx->use_slbc == 1) &&
+	((ctx->enc_params.slbc_cpu_used_performance == 1) || (ctx->enc_params.slbc_need_used_extra_size == 1))) {
 		//release SLB of a normal size with UID_MM_VENC.
 		mtk_v4l2_debug(0, "slbc_cpu_used_perf_release, %p\n", &ctx->sram_data);
 		slbc_release(&ctx->sram_data);
@@ -2812,8 +2822,11 @@ static int vb2ops_venc_start_streaming(struct vb2_queue *q, unsigned int count)
 		if (ctx->sram_data.ref <= 0)
 			atomic_set(&mtk_venc_slb_cb.release_slbc, 0);
 
-		//request SLB with UID_MM_VENC_FHD for a small SLB size(1M)
-		ctx->sram_data.uid = UID_MM_VENC_FHD;
+		if (ctx->enc_params.slbc_need_used_extra_size == 1)
+			ctx->sram_data.uid = UID_MM_VENC_SL;//request SLB with UID_MM_VENC_SL for large SLB size(2.375M)
+		else
+			ctx->sram_data.uid = UID_MM_VENC_FHD;//request SLB with UID_MM_VENC_FHD for a small SLB size(1M)
+
 		if (slbc_request(&ctx->sram_data) >= 0) {
 			ctx->use_slbc = 1;
 			ctx->slbc_addr = (unsigned int)(unsigned long)ctx->sram_data.paddr;
@@ -2856,14 +2869,15 @@ static int vb2ops_venc_start_streaming(struct vb2_queue *q, unsigned int count)
 			ctx->later_cnt_once = true;
 		}
 	}
-	mtk_v4l2_debug(0, "slb_cb %d/%d perf %d cnt %d/%d/%d slb_cpu_used_perf %d",
+	mtk_v4l2_debug(0, "slb_cb %d/%d perf %d cnt %d/%d/%d slb_cpu_used_perf %d slbc_need_used_extra_size %d",
 		atomic_read(&mtk_venc_slb_cb.release_slbc),
 		atomic_read(&mtk_venc_slb_cb.request_slbc),
 		ctx->enc_params.slbc_encode_performance,
 		atomic_read(&mtk_venc_slb_cb.perf_used_cnt),
 		atomic_read(&mtk_venc_slb_cb.later_cnt),
 		ctx->later_cnt_once,
-		ctx->enc_params.slbc_cpu_used_performance);
+		ctx->enc_params.slbc_cpu_used_performance,
+		ctx->enc_params.slbc_need_used_extra_size);
 
 	if (ret) {
 		mtk_v4l2_err("venc_if_set_param failed=%d", ret);
@@ -2887,11 +2901,8 @@ static int vb2ops_venc_start_streaming(struct vb2_queue *q, unsigned int count)
 			goto err_set_param;
 		}
 		mtk_vcodec_set_state(ctx, MTK_STATE_HEADER);
-	} else if (mtk_vcodec_set_state_from(ctx, MTK_STATE_HEADER, MTK_STATE_FLUSH)
-			== MTK_STATE_FLUSH) // flush and reset
-		mtk_v4l2_debug(1, "recover from flush");
-	else
-		mtk_vcodec_set_state_except(ctx, MTK_STATE_INIT, MTK_STATE_FLUSH);
+	} else 
+	    mtk_vcodec_set_state(ctx, MTK_STATE_INIT);
 
 	mutex_lock(&ctx->dev->enc_dvfs_mutex);
 	if (ctx->dev->venc_dvfs_params.mmdvfs_in_vcp) {
@@ -3137,6 +3148,8 @@ static int mtk_venc_encode_header(void *priv)
 	if (!already_put) {
 		if (enc_result.flags&VENC_FLAG_MULTINAL)
 			dst_vb2_v4l2->flags |= V4L2_BUF_FLAG_MULTINAL;
+		if (enc_result.flags&VENC_FLAG_NAL_LENGTH_BS)
+			dst_vb2_v4l2->flags |= V4L2_BUF_FLAG_NAL_LENGTH_BS;
 
 		dst_buf->planes[0].bytesused = enc_result.bs_size;
 		v4l2_m2m_buf_done(dst_vb2_v4l2, VB2_BUF_STATE_DONE);
@@ -4467,6 +4480,21 @@ int mtk_vcodec_enc_ctrls_setup(struct mtk_vcodec_ctx *ctx)
 	cfg.step = 1;
 	cfg.def = -1;
 	cfg.dims[0] = (sizeof(struct mtk_venc_frame_qp_range)/sizeof(s32));
+	cfg.ops = ops;
+	mtk_vcodec_enc_custom_ctrls_check(handler, &cfg, NULL);
+
+	ctx->enc_params.nal_length.prefer = 0;
+	ctx->enc_params.nal_length.bytes = 0;
+	memset(&cfg, 0, sizeof(cfg));
+	cfg.id = V4L2_CID_MPEG_MTK_SET_NAL_SIZE_LENGTH;
+	cfg.type = V4L2_CTRL_TYPE_INTEGER;
+	cfg.flags = V4L2_CTRL_FLAG_WRITE_ONLY;
+	cfg.name = "Video encode Nal Length";
+	cfg.min = 0;
+	cfg.max = 5;
+	cfg.step = 1;
+	cfg.def = 0;
+	cfg.dims[0] = (sizeof(struct mtk_venc_nal_length)/sizeof(s32));
 	cfg.ops = ops;
 	mtk_vcodec_enc_custom_ctrls_check(handler, &cfg, NULL);
 
