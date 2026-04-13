@@ -40,14 +40,11 @@ extern int tcpc_typec_enable(struct tcpc_device *tcpc);
 
 extern int tcpc_typec_change_role(
 	struct tcpc_device *tcpc, uint8_t typec_role, bool postpone);
-extern int tcpc_typec_suspend(struct tcpc_device *tcpc);
-extern void tcpc_typec_resume(struct tcpc_device *tcpc);
 
 #if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
 extern int tcpc_typec_handle_pe_pr_swap(struct tcpc_device *tcpc);
 #endif /* CONFIG_USB_POWER_DELIVERY */
 
-extern const char *const typec_role_name[];
 #if CONFIG_TYPEC_CAP_ROLE_SWAP
 extern int tcpc_typec_swap_role(struct tcpc_device *tcpc);
 #endif /* CONFIG_TYPEC_CAP_ROLE_SWAP */

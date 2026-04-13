@@ -77,6 +77,17 @@
 
 #include <soc/mediatek/mmqos.h>
 
+#ifdef CONFIG_MI_DISP
+#include "mi_disp/mi_dsi_panel.h"
+#include "mtk_dsi.h"
+#endif
+
+#ifdef CONFIG_MI_DISP_FOD_SYNC
+#include "mi_disp/mi_drm_crtc.h"
+#endif
+
+static unsigned int esd_last_bl_for_restore;
+
 static struct mtk_drm_property mtk_crtc_property[CRTC_PROP_MAX] = {
 	{DRM_MODE_PROP_ATOMIC, "OVERLAP_LAYER_NUM", 0, ULONG_MAX, 0},
 	{DRM_MODE_PROP_ATOMIC, "LAYERING_IDX", 0, ULONG_MAX, 0},
@@ -109,6 +120,9 @@ static struct mtk_drm_property mtk_crtc_property[CRTC_PROP_MAX] = {
 	{DRM_MODE_PROP_ATOMIC, "BL_SYNC_GAMMA_GAIN", 0, ULONG_MAX, 0},
 	{DRM_MODE_PROP_ATOMIC, "DYNAMIC_WCG_OFF", 0, ULONG_MAX, 0},
 	{DRM_MODE_PROP_ATOMIC, "WCG_BY_COLOR_MODE", 0, ULONG_MAX, 0},
+#ifdef CONFIG_MI_DISP_FOD_SYNC
+	{DRM_MODE_PROP_ATOMIC, "FOD_SYNC_INFO", 0, UINT_MAX, 0},
+#endif
 };
 
 static struct cmdq_pkt *sb_cmdq_handle;
@@ -1559,6 +1573,14 @@ bool msync_is_on(struct mtk_drm_private *priv,
 	return false;
 }
 
+int esd_restore_backlight(struct drm_crtc *crtc){
+	int ret = 0;
+	ret = mtk_drm_setbacklight(crtc, esd_last_bl_for_restore, 0, (0X1<<SET_BACKLIGHT_LEVEL), 0);
+	DDPINFO("%s-, esd_last_bl_for_restore=%d\n", __func__,  esd_last_bl_for_restore);
+	return ret;
+}
+EXPORT_SYMBOL(esd_restore_backlight);
+
 int mtk_drm_setbacklight(struct drm_crtc *crtc, unsigned int level,
 	unsigned int panel_ext_param, unsigned int cfg_flag, unsigned int lock)
 {
@@ -1685,6 +1707,7 @@ int mtk_drm_setbacklight(struct drm_crtc *crtc, unsigned int level,
 		&& !(cfg_flag & (0x1<<DISABLE_DYN_ELVSS))) {
 
 		DDPINFO("%s cfg_flag = %d,level=%d\n", __func__, cfg_flag, level);
+		esd_last_bl_for_restore = level;
 		if (comp && comp->funcs && comp->funcs->io_cmd)
 			comp->funcs->io_cmd(comp, cmdq_handle, DSI_SET_BL, &level);
 
@@ -16165,6 +16188,10 @@ static void mtk_drm_crtc_atomic_flush(struct drm_crtc *crtc,
 	}
 
 	hdr_en = (bool)mtk_crtc_state->prop_val[CRTC_PROP_HDR_ENABLE];
+
+#ifdef CONFIG_MI_DISP_FOD_SYNC
+	mi_drm_crtc_update_layer_state(crtc);
+#endif
 
 	if (mtk_crtc->fake_layer.fake_layer_mask)
 		mtk_drm_crtc_enable_fake_layer(crtc, old_crtc_state);

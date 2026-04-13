@@ -487,6 +487,9 @@ enum MTK_CRTC_PROP {
 	CRTC_PROP_BL_SYNC_GAMMA_GAIN,
 	CRTC_PROP_DYNAMIC_WCG_OFF,
 	CRTC_PROP_WCG_BY_COLOR_MODE,
+#ifdef CONFIG_MI_DISP_FOD_SYNC
+	CRTC_PROP_MI_FOD_SYNC_INFO,
+#endif
 	CRTC_PROP_MAX,
 };
 
@@ -1527,5 +1530,6 @@ void mtk_crtc_default_path_rst(struct drm_crtc *crtc, struct cmdq_pkt *cmdq_hand
 void mtk_crtc_rst_module(struct drm_crtc *crtc);
 void mtk_crtc_init_hrt_usage(struct drm_crtc *crtc);
 
+int esd_restore_backlight(struct drm_crtc *crtc);
 
 #endif /* MTK_DRM_CRTC_H */

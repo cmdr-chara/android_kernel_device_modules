@@ -36,9 +36,11 @@ enum {
 	PD_TIMER_SRC_RECOVER,
 #if CONFIG_USB_PD_REV30
 	PD_TIMER_CK_NOT_SUPPORTED,
+#if CONFIG_USB_PD_REV30_COLLISION_AVOID
 	PD_TIMER_SINK_TX,
+#endif	/* CONFIG_USB_PD_REV30_COLLISION_AVOID */
 #if CONFIG_USB_PD_REV30_PPS_SOURCE
-	PD_TIMER_SOURCE_PPS_TOUT,
+	PD_TIMER_SOURCE_PPS_TIMEOUT,
 #endif	/* CONFIG_USB_PD_REV30_PPS_SOURCE */
 #endif	/* CONFIG_USB_PD_REV30 */
 	PD_TIMER_HARD_RESET_SAFE0V,
@@ -48,9 +50,9 @@ enum {
 #if CONFIG_USB_PD_SAFE0V_DELAY
 	PD_TIMER_VSAFE0V_DELAY,
 #endif	/* CONFIG_USB_PD_SAFE0V_DELAY */
-#if CONFIG_USB_PD_SAFE0V_TOUT
+#if CONFIG_USB_PD_SAFE0V_TIMEOUT
 	PD_TIMER_VSAFE0V_TOUT,
-#endif	/* CONFIG_USB_PD_SAFE0V_TOUT */
+#endif	/* CONFIG_USB_PD_SAFE0V_TIMEOUT */
 #if CONFIG_USB_PD_SAFE5V_DELAY
 	PD_TIMER_VSAFE5V_DELAY,
 #endif	/* CONFIG_USB_PD_SAFE5V_DELAY */
@@ -60,16 +62,18 @@ enum {
 #if CONFIG_USB_PD_VBUS_STABLE_TOUT
 	PD_TIMER_VBUS_STABLE,
 #endif	/* CONFIG_USB_PD_VBUS_STABLE_TOUT */
-	PD_TIMER_CVDM_RESPONSE,
+	PD_TIMER_UVDM_RESPONSE,
 	PD_TIMER_DFP_FLOW_DELAY,
 	PD_TIMER_UFP_FLOW_DELAY,
 	PD_TIMER_VCONN_READY,
 	PD_PE_VDM_POSTPONE,
 #if CONFIG_USB_PD_REV30
+#if CONFIG_USB_PD_REV30_COLLISION_AVOID
 	PD_TIMER_DEFERRED_EVT,
 #if CONFIG_USB_PD_REV30_SNK_FLOW_DELAY_STARTUP
 	PD_TIMER_SNK_FLOW_DELAY,
 #endif	/* CONFIG_USB_PD_REV30_SNK_FLOW_DELAY_STARTUP */
+#endif	/* CONFIG_USB_PD_REV30_COLLISION_AVOID */
 #if CONFIG_USB_PD_REV30_PPS_SINK
 	PD_TIMER_PPS_REQUEST,
 #endif	/* CONFIG_USB_PD_REV30_PPS_SINK */
@@ -90,15 +94,13 @@ enum {
 	TYPEC_RT_TIMER_STATE_CHANGE,
 	TYPEC_RT_TIMER_DISCHARGE,
 	TYPEC_RT_TIMER_LOW_POWER_MODE,
+	TYPEC_RT_TIMER_SAFE5V_DELAY,
 #if IS_ENABLED(CONFIG_USB_POWER_DELIVERY)
 	TYPEC_RT_TIMER_PE_IDLE,
 #if CONFIG_USB_PD_WAIT_BC12
 	TYPEC_RT_TIMER_PD_WAIT_BC12,
 #endif /* CONFIG_USB_PD_WAIT_BC12 */
 #endif	/* CONFIG_USB_POWER_DELIVERY */
-#if CONFIG_WATER_DETECTION
-	TYPEC_RT_TIMER_WD_IN_KPOC,
-#endif /* CONFIG_WATER_DETECTION */
 	TYPEC_TIMER_ERROR_RECOVERY,
 
 /* TYPEC_TRY_TIMER */
@@ -120,11 +122,10 @@ enum {
 	PD_TIMER_NR,
 };
 
-extern uint64_t tcpc_get_timer_tick(struct tcpc_device *tcpc);
 extern void tcpc_enable_lpm_timer(struct tcpc_device *tcpc, bool en);
 extern bool tcpc_is_timer_active(struct tcpc_device *tcpc, int start, int end);
 extern void tcpc_enable_timer(struct tcpc_device *tcpc, uint32_t timer_id);
-extern int tcpc_disable_timer(struct tcpc_device *tcpc, uint32_t timer_id);
+extern void tcpc_disable_timer(struct tcpc_device *tcpc, uint32_t timer_id);
 extern void tcpc_restart_timer(struct tcpc_device *tcpc, uint32_t timer_id);
 extern void tcpc_reset_pe_timer(struct tcpc_device *tcpc);
 extern void tcpc_reset_typec_debounce_timer(struct tcpc_device *tcpc);

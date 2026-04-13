@@ -92,10 +92,14 @@ void pe_ufp_vdm_dp_configure_entry(struct pd_port *pd_port)
  * SVMD/UVDM
  */
 
-void pe_ufp_cvdm_recv_entry(struct pd_port *pd_port)
+#if CONFIG_USB_PD_CUSTOM_VDM
+
+void pe_ufp_uvdm_recv_entry(struct pd_port *pd_port)
 {
-	pd_dpm_ufp_recv_cvdm(pd_port);
+	pd_dpm_ufp_recv_uvdm(pd_port);
 }
+
+#endif	/* CONFIG_USB_PD_CUSTOM_VDM */
 
 void pe_ufp_vdm_send_nak_entry(struct pd_port *pd_port)
 {
