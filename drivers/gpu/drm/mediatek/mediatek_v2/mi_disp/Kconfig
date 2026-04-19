@@ -94,7 +94,7 @@ config MI_DISP_INPUT_HANDLER
 
 config MI_DISP_BOOST
        bool "Xiaomi Display CPU Boost"
-       default n
+       default y
        depends on MI_DISP
        help
          This is used to boost cpu for some cases, such as kicking idle
