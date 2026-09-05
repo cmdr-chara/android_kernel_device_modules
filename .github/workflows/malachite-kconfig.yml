@@ -1,0 +1,22 @@
+name: Malachite Kconfig contracts
+on:
+  push:
+    branches: [revival/kconfig-contracts]
+  pull_request:
+    branches: [lineage-23.2]
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          filter: blob:none
+          sparse-checkout: |
+            drivers/power/supply/battery_secrete
+            drivers/misc/mediatek/si_haptic
+            tests
+      - run: python3 -m unittest discover -s tests -p 'test_malachite_kconfig.py' -v

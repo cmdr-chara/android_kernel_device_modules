@@ -1,33 +1,33 @@
 config ONEWIRE_GPIO
-	tristate "onewire gpio driver"
+	tristate
 	prompt "Support Onewire Driver."
 	default y
 	help
 		It's an onewire driver.
 
 config BATT_VERIFY
-	tristate "auth battery driver"
+	tristate
 	prompt "Support auth battery."
 	default y
 	help
 		It needs a onewire physical controller to work.
 
 config BATT_VERIFY_BY_SLG
-	tristate "slg driver"
+	tristate
 	prompt "Support slg as encryption IC."
 	default y
 	help
 		It needs a onewire physical controller to work.
 
 config BATT_VERIFY_BY_ST
-	tristate "st driver"
+	tristate
 	prompt "Support sti as encryption IC."
 	default m
 	help
 		It's an onewire driver.
 
 config BATT_VERIFY_BY_DS28E30
-	tristate "ds28e30 driver"
+	tristate
 	prompt "Support ds28e16 as encryption IC."
 	default y
 	help
